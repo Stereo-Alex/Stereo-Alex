@@ -22,6 +22,7 @@ Currently looking to work on projects related to machine learning, web scraping 
 ![](https://komarev.com/ghpvc/?username=Stereo-Alex&style=flat)
 [![Github](https://img.shields.io/badge/-StereoAlex-black?style=flat&labelColor=black&logo=github&logoColor=white)](https://gitstats.me/Stereo-Alex)
 
+<div align="left" width="50">
 
 ### Things that I'm currently working on: 
 * Working on some interesting flashy visualizations related with data.
