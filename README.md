@@ -10,6 +10,7 @@
 I'm Alex! An economist slowly exploring the world of data Science, looking to work on projects involving Machine Learnign and more specifically Natual Language Processing. I have a strong interest in sociology and cultural tendencies specially when they cross over with statistics and can be backed by data.
 Currently looking to work on projects related to machine learning, web scraping and data visualisation, especially NLP and dash. So if you want to collaborate please reach out!
 
+
 <!-- Your badges -->
 [![Linkedin](https://img.shields.io/badge/-AlexJurado-blue?style=flat&logo=Linkedin&logoColor=white)](https://www.linkedin.com/in/alexjuradogoni/)
 [![Gmail](https://img.shields.io/badge/-AlexJurado-c14438?style=flat&logo=Gmail&logoColor=white)](mailto:alexjuradogoni@gmail.com)
@@ -20,3 +21,15 @@ Currently looking to work on projects related to machine learning, web scraping 
 <!-- Profile View Count and GitStats -->
 ![](https://komarev.com/ghpvc/?username=Stereo-Alex&style=flat)
 [![Github](https://img.shields.io/badge/-StereoAlex-black?style=flat&labelColor=black&logo=github&logoColor=white)](https://gitstats.me/Stereo-Alex)
+
+
+### Things that I'm currently working on: 
+* Working on some interesting flashy visualizations related with data.
+* Learning Data Science, specifically everything related with TensorFlow.
+* Working on Topic Modelling using Machine Learning 
+* Chat Bot using BERT
+
+## Other:
+* Always seeking to learn
+* Recomend me Podcasts and books please! 
+* Brazilian Jiu-Jitsu competitor (Its a miracle I can type)
