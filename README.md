@@ -7,7 +7,8 @@
 <div align="center" width="50">
 
 <!--Introduction -->
-I'm Alex! An economist slowly exploring the world of data Science, looking to work on projects involving Machine Learnign and more specifically Natual Language Processing. I have a strong interest in sociology and cultural tendencies specially when they cross over with statistics and can be backed by data.
+I'm Alex! An 23yo economist slowly exploring the world of data Science, looking to work on projects involving Machine Learnign and more specifically Natual Language Processing. I have a strong interest in sociology and cultural tendencies specially when they cross over with statistics and can be backed by data.
+
 Currently looking to work on projects related to machine learning, web scraping and data visualisation, especially NLP and dash. So if you want to collaborate please reach out!
 
 
@@ -34,3 +35,7 @@ Currently looking to work on projects related to machine learning, web scraping 
 * Always seeking to learn
 * Recomend me Podcasts and books please! 
 * Brazilian Jiu-Jitsu competitor (Its a miracle I can type)
+* Have pacience with me I ask a lot of stupid questions 
+
+
+<p>&nbsp;<img align="center" src="https://github-readme-stats.vercel.app/api?username=Stereo-Alex&show_icons=true" alt="Stereo-Alex" /></p>
