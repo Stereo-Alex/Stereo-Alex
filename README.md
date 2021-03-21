@@ -51,8 +51,8 @@ Currently looking to work on projects related to machine learning, web scraping 
 
 <p align="center">
 <a href="https://github.com/Stereo-Alex">
-  <img height="180em" src="https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=angolia&show_icons=true"/>
-  <img height="180em" src="https://github-readme-stats-eight-theta.vercel.app/api/top-langs/?username=Stereo-Alex&layout=compact&langs_count=8&theme=angolia"/>
+  <img height="180em" src="https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=outrun&show_icons=true"/>
+  <img height="180em" src="https://github-readme-stats-eight-theta.vercel.app/api/top-langs/?username=Stereo-Alex&layout=compact&langs_count=8&theme=outrun&show_icons=true"/>
 </a>
 </p>
 
