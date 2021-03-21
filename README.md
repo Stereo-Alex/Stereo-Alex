@@ -17,6 +17,7 @@ Currently looking to work on projects related to machine learning, web scraping 
 [![Gmail](https://img.shields.io/badge/-AlexJurado-c14438?style=flat&logo=Gmail&logoColor=white)](mailto:alexjuradogoni@gmail.com)
 [![Medium](https://img.shields.io/badge/-@alexjurdao-black?style=flat&logo=Medium&logoColor=white)](https://alex-jurado.medium.com/)
 [![Instagram](https://img.shields.io/badge/-stereo_alex-c13584?style=flat&labelColor=c13584&logo=instagram&logoColor=white)](https://www.instagram.com/stereo_alex/)
+[Portfolio](https://stereo-alex.github.io/)
 
 
 <!-- Profile View Count and GitStats -->
@@ -38,4 +39,4 @@ Currently looking to work on projects related to machine learning, web scraping 
 * Have pacience with me I ask a lot of stupid questions 
 
 
-<p>&nbsp;<img align="center" src="https://github-readme-stats.vercel.app/api?username=Stereo-Alex&show_icons=true" alt="Stereo-Alex" /></p>
+![Stereo Alex Github stats](https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=outrun&show_icons=true)
