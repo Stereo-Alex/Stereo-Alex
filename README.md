@@ -32,6 +32,20 @@ Currently looking to work on projects related to machine learning, web scraping 
 * Working on Topic Modelling using Machine Learning 
 * Chat Bot using BERT
 
+### 🛠 &nbsp;Tech 
+
+![Python](https://img.shields.io/badge/-Python-05122A?style=flat&logo=python)&nbsp;
+![Git](https://img.shields.io/badge/-Git-05122A?style=flat&logo=git)&nbsp;
+![GitHub](https://img.shields.io/badge/-GitHub-05122A?style=flat&logo=github)&nbsp;
+![Markdown](https://img.shields.io/badge/-Markdown-05122A?style=flat&logo=markdown)\
+![Visual Studio Code](https://img.shields.io/badge/-Visual%20Studio%20Code-05122A?style=flat&logo=visual-studio-code&logoColor=007ACC)&nbsp;
+
+### ⚙️ &nbsp;GitHub Analytics
+
+
+![Stereo Alex Github stats](https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=outrun&show_icons=true)
+![Stereo Alex Readme](https://github-readme-stats-eight-theta.vercel.app/api/top-langs/?username=Stereo-Alex&layout=compact&langs_count=8&theme=outrun)
+
 ## Other:
 * Always seeking to learn
 * Recomend me Podcasts and books please! 
@@ -39,4 +53,3 @@ Currently looking to work on projects related to machine learning, web scraping 
 * Have pacience with me I ask a lot of stupid questions 
 
 
-![Stereo Alex Github stats](https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=outrun&show_icons=true)
