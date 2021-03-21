@@ -45,16 +45,8 @@ Currently looking to work on projects related to machine learning, web scraping 
 
 ![Stereo Alex Github stats](https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=outrun&show_icons=true)
 ![Stereo Alex Readme](https://github-readme-stats-eight-theta.vercel.app/api/top-langs/?username=Stereo-Alex&layout=compact&langs_count=8&theme=outrun)
+[![Top Langs](https://github-readme-stats.vercel.app/api/top-langs/?username=anuraghazra&layout=compact)](https://github.com/Stereo-Alex/github-readme-stats)
 
-
-### ⚙️ &nbsp;GitHub Analytics
-
-<p align="center">
-<a href="https://github.com/Stereo-Alex">
-  <img height="180em" src="https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=outrun&show_icons=true"/>
-  <img height="180em" src="https://github-readme-stats-eight-theta.vercel.app/api/top-langs/?username=Stereo-Alex&layout=compact&langs_count=8&theme=outrun&show_icons=true"/>
-</a>
-</p>
 
 
 
