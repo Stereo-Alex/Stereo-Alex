@@ -44,7 +44,7 @@ Currently looking to work on projects related to machine learning, web scraping 
 
 
 ![Stereo Alex Github stats](https://github-readme-stats.vercel.app/api?username=Stereo-Alex&theme=outrun&show_icons=true)
-<p align="center">
+<p align="left">
   <a href="https://github.com/Stereo-Alex/github-readme-streak-stats">
     <img src="https://github-readme-streak-stats.herokuapp.com/?user=Stereo-Alex"/>
   </a>
