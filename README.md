@@ -6,19 +6,10 @@
 
 <div align="center" width="50">
 
+<!--Introduction -->
+I'm Alex! I'm a gradueate in economics slowly exploring the world of data Science, looking to work on projects involving Machine Learnign and more specifically Natual Language Processing. I have a strong interest in sociology and cultural tendencies specially when they cross over with statistics and can be backed by data.
+Currently looking to work on projects related to machine learning, web scraping and data visualisation, especially NLP and dash. So if you want to collaborate please reach out!
 
-
-</div>
-
-<div align="center">
-
-You have finally discovered my Github profile. <br>
-Please feel free to clone/fork projects, raise issues and submit PRs if you think something could be better. <br>
-Ask me anything <a href="https://github.com/ABSphreak/ABSphreak/issues/new"><b>here</b></a><br>
-or <a href="mailto:absphreak@outlook.com"><b>email</b></a> me
-
-<i>Happy Coding!</i> 😊
-
-</div>
-
+<br>
+<img src="https://media.giphy.com/media/LnQjpWaON8nhr21vNW/giphy.gif" width="40"> <em><b>I love connecting with different people</b> so if you want to say <b>hi, I'll be happy to meet you more!</b> :blush:</em>
 
