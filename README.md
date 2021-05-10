@@ -9,7 +9,7 @@
 <!--Introduction -->
 I'm Alex! A 23yo economist slowly exploring the world of data Science. I have a strong interest in sociology and cultural tendencies specially when they cross over with statistics and can be backed by data.
 
-Currently looking to work on projects related to machine learning, web scraping and data visualisation, especially NLP and dash. So if you want to collaborate please reach out!
+Currently looking to work on projects related to machine learning, web scraping and data visualisation, especially Deep Learning, working slowly towards becoming proficient in tensorflow. So if you want to collaborate please reach out!
 
 
 <!-- Your badges -->
