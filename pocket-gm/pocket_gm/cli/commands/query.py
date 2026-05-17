@@ -12,7 +12,7 @@ from pocket_gm.core.logger import log_query
 from pocket_gm.ingestion.embedder import Embedder
 from pocket_gm.retrieval.router import query_all_sync
 from pocket_gm.retrieval.store import Store
-from pocket_gm.synthesis.grounding import validate_citations
+from pocket_gm.synthesis.grounding import parse_json_answer, validate_citations
 from pocket_gm.synthesis.ollama_client import OllamaClient
 from pocket_gm.synthesis.prompt_builder import build_prompt
 
@@ -57,6 +57,7 @@ def ask(
         result.notes,
         result.sessions,
         threshold=cfg.retrieval.relevance_threshold,
+        json_mode=cfg.llm.json_citations,
     )
 
     ollama = OllamaClient(base_url=cfg.llm.base_url, model=cfg.llm.model)
@@ -68,7 +69,10 @@ def ask(
     with console.status("Thinking..."):
         answer_text = ollama.generate(prompt, temperature=cfg.llm.temperature, max_tokens=cfg.llm.max_tokens)
 
-    grounded = validate_citations(answer_text, index_map)
+    if cfg.llm.json_citations:
+        grounded = parse_json_answer(answer_text, index_map)
+    else:
+        grounded = validate_citations(answer_text, index_map)
 
     # Display answer
     answer_display = Text(grounded.text)

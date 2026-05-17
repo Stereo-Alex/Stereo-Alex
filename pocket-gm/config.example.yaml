@@ -1,5 +1,5 @@
 campaigns_dir: ~/.pocket-gm/campaigns
-lancedb_path: ~/.pocket-gm/lancedb
+lancedb_path: ~/.pocket-gm/vectors.db  # path to the sqlite-vec .db file (key name kept for backwards compatibility)
 logs_path: ~/.pocket-gm/logs
 
 embedding:

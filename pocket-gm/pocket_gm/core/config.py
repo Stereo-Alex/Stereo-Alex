@@ -28,6 +28,7 @@ class LLMConfig:
     model: str = "phi3:mini"
     temperature: float = 0.1
     max_tokens: int = 512
+    json_citations: bool = False
 
 
 @dataclass
@@ -120,6 +121,7 @@ def save_config(cfg: Config, path: Path | None = None) -> None:
             "model": cfg.llm.model,
             "temperature": cfg.llm.temperature,
             "max_tokens": cfg.llm.max_tokens,
+            "json_citations": cfg.llm.json_citations,
         },
         "whisper": {
             "model_size": cfg.whisper.model_size,
