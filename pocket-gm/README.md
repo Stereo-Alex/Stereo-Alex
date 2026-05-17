@@ -24,10 +24,10 @@ Sources
 
 ## What it does
 
-Pocket GM keeps two kinds of knowledge about your campaign and searches both when you ask a question:
+Pocket GM keeps three kinds of knowledge about your campaign and searches all of them when you ask a question:
 
 - **Sourcebooks** — official adventure PDFs and rulebooks (high authority, static)
-- **GM Notes** — your personal notes, homebrew rules, and campaign prep (your authority)
+- **GM Notes** — your personal notes, homebrew rules, and Obsidian vaults (your authority)
 - **Sessions** — transcripts of your actual play sessions, automatically built from audio recordings (grows each session)
 
 Every answer cites its sources. If something isn't in the sources, it says so instead of guessing.
@@ -81,22 +81,37 @@ pocket-gm ask "Who controls the Stolen Lands?" --campaign kingmaker
 ```bash
 pocket-gm campaign new <name>       # create a campaign
 pocket-gm campaign list             # list all campaigns
-pocket-gm campaign delete <id>      # delete a campaign
+pocket-gm campaign delete <id>      # delete a campaign and its data
 ```
 
 ### Ingesting materials
 
 ```bash
-pocket-gm ingest pdf <file.pdf> --campaign <id>       # add a sourcebook
-pocket-gm ingest notes <path> --campaign <id>         # add markdown/text notes
-pocket-gm ingest gdrive <folder-url> --campaign <id>  # pull from Google Drive (requires extras)
+pocket-gm ingest pdf <file.pdf> --campaign <id>
+    # add a sourcebook PDF to the sourcebook store
+
+pocket-gm ingest notes <path> --campaign <id>
+    # add markdown or text files to the notes store (file or directory)
+
+pocket-gm ingest obsidian <vault-dir> --campaign <id>
+    # ingest an Obsidian vault, resolving wikilinks, frontmatter, and embeds
+
+pocket-gm ingest gdrive <folder-url> --campaign <id> [--audio]
+    # sync a Google Drive folder; PDFs → sourcebook, docs/text → notes
+    # requires: pip install 'pocket-gm[gdrive]'
+    # --audio also downloads and transcribes audio files into the sessions store
 ```
 
-### Ingesting sessions
+All ingest commands are **idempotent** — re-running skips files that haven't changed (SHA256 hash check). Use `--force` to re-index.
+
+### Session recordings
 
 ```bash
 pocket-gm session add <audio.mp3> --campaign <id> --date 2025-03-10 --number 4
+    # transcribe audio with Whisper and ingest into the sessions store
+
 pocket-gm session list --campaign <id>
+    # list all ingested sessions
 ```
 
 ### Querying
@@ -105,45 +120,68 @@ pocket-gm session list --campaign <id>
 pocket-gm ask "<question>" --campaign <id>
 ```
 
+### Campaign status
+
+```bash
+pocket-gm status --campaign <id>
+    # show chunk counts per store, ingested files, and last query
+```
+
 ### Evaluation
 
 ```bash
-pocket-gm eval run --campaign <id>   # recall@k and citation coverage metrics
+pocket-gm eval run --campaign <id> [--eval-set path/to/eval_set.json]
+    # recall@k and citation coverage against a labeled eval set
+
+pocket-gm eval calibrate --campaign <id>
+    # suggest a relevance threshold based on your query log score distribution
+```
+
+### REST API server
+
+```bash
+pocket-gm serve [--host 127.0.0.1] [--port 8080] [--reload]
+    # start the REST API; requires: pip install 'pocket-gm[serve]'
+    # endpoints: POST /query, GET /campaigns, GET /campaigns/{id}/sessions,
+    #            GET /campaigns/{id}/status, GET /health
+    # interactive docs: http://localhost:8080/docs
 ```
 
 ---
 
 ## How it works
 
-Pocket GM uses **retrieval-augmented generation (RAG)** with three separate knowledge stores per campaign:
+Pocket GM uses **retrieval-augmented generation (RAG)** with three separate vector stores per campaign, each queried in parallel:
 
 ```
 Your question
     │
-    ├──► Sourcebook DB   ──┐
-    ├──► GM Notes DB    ──►├── Ranked, cited chunks
-    └──► Sessions DB    ──┘         │
-                                    ▼
-                          LLM synthesises answer
-                          (only from retrieved chunks)
+    ├──► Sourcebook store  ──┐
+    ├──► GM Notes store    ──►── Ranked, cited chunks
+    └──► Sessions store    ──┘         │
+                                       ▼
+                             Relevance gate (score ≥ 0.35)
+                                       │
+                             LLM synthesises answer
+                             (only from retrieved chunks)
 ```
 
-All three stores are queried in parallel. Each source is cited separately in the answer. If nothing relevant is found, the LLM is never called.
+If nothing scores above the relevance threshold, the LLM is never called.
 
-**Vector store:** [LanceDB](https://lancedb.github.io/lancedb/) — serverless, embedded, no server process required.  
-**Embeddings:** `all-MiniLM-L6-v2` via `sentence-transformers` — runs on CPU.  
+**Vector store:** [sqlite-vec](https://github.com/asg017/sqlite-vec) — single portable `.db` file, no server process.  
+**Embeddings:** `all-MiniLM-L6-v2` via `sentence-transformers` — 384-dim, runs on CPU.  
 **LLM:** Local Ollama models (`phi3:mini` default, `mistral:7b-instruct` for harder queries).  
-**Audio transcription:** `faster-whisper` (local, open source).
+**Audio transcription:** `faster-whisper` — local, open source, timestamped segments.
 
 ---
 
 ## Grounding & Anti-Hallucination
 
-Pocket GM uses four layers to prevent invented answers:
+Four layers prevent invented answers:
 
-1. **Retrieval gate** — if no chunk scores above the relevance threshold (default 0.35 cosine similarity), the LLM is never called and the system returns "not found"
-2. **Prompt-level instruction** — the LLM is explicitly told to cite every fact with `[1][2]` markers and say "not found" for anything absent from the sources
-3. **Citation enforcement** — the output is post-processed to verify every citation marker refers to an actual retrieved chunk; uncited sentences are flagged with a warning
+1. **Retrieval gate** — if no chunk scores above the relevance threshold, the LLM is never called and the system returns "not found"
+2. **Prompt-level instruction** — the LLM is told to cite every fact with `[1][2]` markers and say "not found" for anything absent from the sources
+3. **Citation enforcement** — output is post-processed to verify every citation marker refers to an actual retrieved chunk; uncited sentences are flagged with a warning
 4. **Query logging** — every query, retrieved chunks, scores, and answer are logged to `~/.pocket-gm/logs/queries.ndjson` for offline inspection and evaluation
 
 ---
@@ -166,24 +204,39 @@ Copy `config.example.yaml` to `~/.pocket-gm/config.yaml` and adjust:
 ```yaml
 retrieval:
   top_k: 5
-  relevance_threshold: 0.35   # raise if getting irrelevant results
+  relevance_threshold: 0.35   # raise if getting irrelevant results; run eval calibrate to tune
 
 llm:
-  model: phi3:mini             # any model available in your Ollama
+  model: phi3:mini             # any model available in your local Ollama
+  json_citations: false        # set true for structured JSON citation output
 
 whisper:
-  model_size: base             # tiny / base / medium — tradeoff speed vs accuracy
+  model_size: base             # tiny / base / medium — tradeoff speed vs. accuracy
+  diarize: false               # speaker diarization (requires pyannote-audio)
+```
+
+Full reference: see `config.example.yaml`.
+
+---
+
+## Optional extras
+
+```bash
+pip install 'pocket-gm[gdrive]'   # Google Drive sync
+pip install 'pocket-gm[serve]'    # REST API server
+pip install 'pocket-gm[dev]'      # pytest, pytest-asyncio
 ```
 
 ---
 
 ## Architecture
 
-See [docs/architecture.md](docs/architecture.md) for full design notes including:
+See [docs/architecture.md](docs/architecture.md) for design notes including:
 - Why three separate stores instead of one
-- Why LanceDB was chosen
-- Chunking strategy differences between sourcebooks and transcripts
-- The grounding pipeline in detail
+- sqlite-vec vs. alternatives (LanceDB, ChromaDB, FAISS)
+- Chunking strategy differences between sourcebooks, notes, and transcripts
+- The four-layer grounding pipeline in detail
+- Obsidian vault preprocessing (wikilinks, embeds, frontmatter, callouts)
 
 ---
 
@@ -191,16 +244,18 @@ See [docs/architecture.md](docs/architecture.md) for full design notes including
 
 ```bash
 pip install -e ".[dev]"
-pytest
-pocket-gm eval run --campaign <id>
+pytest                                          # 182 tests
+pocket-gm eval calibrate --campaign <id>       # tune threshold from real queries
+pocket-gm eval run --campaign <id>             # recall@k + citation coverage
 ```
 
 ### Adding a new source type
 
 1. Add a loader in `pocket_gm/ingestion/`
-2. Add a table name constant in `pocket_gm/retrieval/store.py`
+2. Add a table name helper in `pocket_gm/retrieval/store.py`
 3. Add a retrieval branch in `pocket_gm/retrieval/router.py`
-4. Add a section in `pocket_gm/synthesis/prompt_builder.py`
+4. Add a prompt section in `pocket_gm/synthesis/prompt_builder.py`
+5. Wire a CLI command in `pocket_gm/cli/commands/ingest.py`
 
 ---
 
@@ -209,12 +264,12 @@ pocket-gm eval run --campaign <id>
 | Phase | Status | Description |
 |-------|--------|-------------|
 | 0 — Scaffold | ✅ | Project structure, config, campaign management |
-| 1 — Sourcebook ingestion | 🔄 | PDF → LanceDB pipeline |
-| 2 — Static query | ⬜ | Ask questions against sourcebooks + GM notes |
-| 3 — Audio + sessions | ⬜ | Whisper transcription → session DB |
-| 4 — Eval harness | ⬜ | Recall@k and citation coverage metrics |
-| 5 — Google Drive | ⬜ | Ingest from Google Drive |
-| 6 — Mobile backend | ⬜ | FastAPI server + phone app |
+| 1 — Sourcebook ingestion | ✅ | PDF → sqlite-vec pipeline with heading detection |
+| 2 — Static query | ✅ | Sourcebooks + GM notes, relevance gate, citation grounding |
+| 3 — Audio + sessions | ✅ | Whisper transcription → timestamped session store |
+| 4 — Eval harness | ✅ | Recall@k, citation coverage, threshold calibration |
+| 5 — Google Drive | ✅ | OAuth2 sync with MD5 manifest cache |
+| 6 — REST API | ✅ | FastAPI server, `pocket-gm serve` |
 
 ---
 
