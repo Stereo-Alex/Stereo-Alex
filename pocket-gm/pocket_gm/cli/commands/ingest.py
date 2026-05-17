@@ -8,8 +8,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from pocket_gm.core.campaign import get_campaign
 from pocket_gm.core.config import load_config
-from pocket_gm.ingestion.chunker import Chunk, chunk_markdown, chunk_pdf_pages
+from pocket_gm.ingestion.chunker import Chunk, chunk_markdown, chunk_obsidian_note, chunk_pdf_pages
 from pocket_gm.ingestion.embedder import Embedder
+from pocket_gm.ingestion.obsidian_loader import load_obsidian_vault
 from pocket_gm.ingestion.pdf_loader import load_pdf
 from pocket_gm.retrieval.store import Store, notes_table, sourcebook_table
 
@@ -92,3 +93,38 @@ def ingest_notes(
         console.print(f"  {f.name}: {len(chunks)} chunks")
 
     _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(files)} file(s)")
+
+
+@app.command("obsidian")
+def ingest_obsidian(
+    vault: Path = typer.Argument(..., help="Path to Obsidian vault directory"),
+    campaign: str = typer.Option(..., "--campaign", "-c", help="Campaign ID"),
+):
+    """Ingest an Obsidian vault, resolving wikilinks and frontmatter."""
+    cfg, camp = _require_campaign(campaign)
+
+    if not vault.is_dir():
+        console.print(f"[red]Vault directory not found:[/red] {vault}")
+        raise typer.Exit(1)
+
+    console.print(f"Scanning vault [bold]{vault}[/bold]...")
+    notes = load_obsidian_vault(vault)
+
+    if not notes:
+        console.print("[yellow]No notes found in vault (or all were empty after cleaning).[/yellow]")
+        return
+
+    console.print(f"  {len(notes)} notes found")
+
+    all_chunks: list[Chunk] = []
+    for note in notes:
+        chunks = chunk_obsidian_note(note, cfg.chunking.notes.chunk_size, cfg.chunking.notes.chunk_overlap)
+        all_chunks.extend(chunks)
+
+    console.print(f"  {len(all_chunks)} total chunks")
+
+    if not all_chunks:
+        console.print("[yellow]No chunks produced — notes may be empty.[/yellow]")
+        return
+
+    _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(notes)} Obsidian notes")

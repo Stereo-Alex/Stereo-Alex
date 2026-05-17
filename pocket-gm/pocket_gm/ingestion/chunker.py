@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pocket_gm.ingestion.pdf_loader import RawChunk
 
@@ -12,7 +12,9 @@ class Chunk:
     heading: str
     filename: str
     chunk_index: int
-    source_type: str   # "pdf" | "markdown" | "transcript"
+    source_type: str   # "pdf" | "markdown" | "obsidian" | "transcript"
+    tags: list[str] = field(default_factory=list)
+    title: str = ""
 
 
 def _split_words(text: str, size: int, overlap: int) -> list[str]:
@@ -83,6 +85,43 @@ def chunk_markdown(text: str, filename: str, chunk_size: int = 256, chunk_overla
 
     flush(current_heading)
     return chunks
+
+
+def chunk_obsidian_note(note, chunk_size: int = 256, chunk_overlap: int = 32) -> list[Chunk]:
+    """
+    Chunk a pre-cleaned ObsidianNote. The note's title is injected as the top-level
+    heading prefix so every chunk carries note identity even without surrounding context.
+    Tags and aliases from frontmatter are appended to the first chunk so they are
+    searchable (e.g. querying a tag finds the note).
+    """
+    # Prepend title as a top-level heading so the markdown chunker picks it up
+    body = f"# {note.title}\n{note.body}"
+
+    # Append tags + aliases as a discoverable footer on the note text
+    extras: list[str] = []
+    if note.tags:
+        extras.append("Tags: " + ", ".join(note.tags))
+    if note.aliases:
+        extras.append("Also known as: " + ", ".join(note.aliases))
+    if extras:
+        body += "\n" + " | ".join(extras)
+
+    raw_chunks = chunk_markdown(body, note.path.name, chunk_size, chunk_overlap)
+
+    # Upgrade source_type and carry note metadata
+    result: list[Chunk] = []
+    for c in raw_chunks:
+        result.append(Chunk(
+            text=c.text,
+            page=0,
+            heading=c.heading or note.title,
+            filename=note.path.name,
+            chunk_index=c.chunk_index,
+            source_type="obsidian",
+            tags=note.tags,
+            title=note.title,
+        ))
+    return result
 
 
 def chunk_transcript(
