@@ -8,6 +8,7 @@ from rich.table import Table
 
 from pocket_gm.core.config import load_config
 from pocket_gm.eval.harness import run_eval
+from pocket_gm.eval.calibrate import calibrate_threshold
 
 app = typer.Typer(help="Evaluate retrieval and grounding quality")
 console = Console()
@@ -48,3 +49,30 @@ def eval_run(
         console.print("[yellow]Tip:[/yellow] Low recall — try lowering chunk_size or reducing relevance_threshold in config.yaml")
     if metrics.citation_coverage < 0.8:
         console.print("[yellow]Tip:[/yellow] Low citation coverage — the LLM may need a stronger grounding instruction or a larger model")
+
+
+@app.command("calibrate")
+def eval_calibrate(
+    campaign: str = typer.Option(..., "--campaign", "-c", help="Campaign ID"),
+):
+    """Calibrate the relevance threshold using the query log for a campaign."""
+    cfg = load_config()
+    result = calibrate_threshold(cfg.logs_path, campaign)
+
+    if result.total_scores == 0:
+        console.print(f"[yellow]{result.reasoning}[/yellow]")
+        raise typer.Exit(0)
+
+    table = Table(title=f"Score Distribution — {campaign}", show_header=True, header_style="bold")
+    table.add_column("Percentile", style="cyan")
+    table.add_column("Score")
+
+    table.add_row("p10", f"{result.p10:.4f}")
+    table.add_row("p25", f"{result.p25:.4f}")
+    table.add_row("p50", f"{result.p50:.4f}")
+    table.add_row("p75", f"{result.p75:.4f}")
+    table.add_row("p90", f"{result.p90:.4f}")
+
+    console.print(table)
+    console.print(f"\n[bold green]Suggested threshold:[/bold green] {result.suggested_threshold:.4f}")
+    console.print(f"[dim]{result.reasoning}[/dim]")

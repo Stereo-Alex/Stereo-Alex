@@ -10,6 +10,7 @@ class TranscriptSegment:
     start: float
     end: float
     text: str
+    speaker: str = "unknown"
 
 
 @dataclass
@@ -27,11 +28,24 @@ def transcribe(
     model_size: str = "base",
     language: str = "en",
     device: str = "cpu",
+    diarize: bool = False,
 ) -> Transcript:
     try:
         from faster_whisper import WhisperModel
     except ImportError:
         raise ImportError("faster-whisper is required: pip install faster-whisper")
+
+    if diarize:
+        try:
+            import pyannote.audio  # noqa: F401
+        except ImportError:
+            raise ImportError(
+                "Speaker diarization requires pyannote.audio.\n"
+                "Install it with: pip install pyannote.audio\n"
+                "You also need to accept the HuggingFace model licence at:\n"
+                "  https://huggingface.co/pyannote/speaker-diarization\n"
+                "Alternatively, set diarize=False (the default) to skip diarization."
+            )
 
     model = WhisperModel(model_size, device=device, compute_type="int8")
     segments_iter, info = model.transcribe(
@@ -59,7 +73,7 @@ def save_transcript(transcript: Transcript, output_dir: Path, stem: str) -> tupl
     data = {
         "language": transcript.language,
         "segments": [
-            {"start": s.start, "end": s.end, "text": s.text}
+            {"start": s.start, "end": s.end, "text": s.text, "speaker": s.speaker}
             for s in transcript.segments
         ],
     }

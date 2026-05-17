@@ -23,6 +23,7 @@ whisper:
   model_size: base
   language: en
   device: cpu
+  diarize: false
 
 chunking:
   sourcebook:
