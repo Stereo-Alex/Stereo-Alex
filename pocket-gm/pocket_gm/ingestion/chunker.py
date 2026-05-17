@@ -139,19 +139,28 @@ def chunk_transcript(
     if not words:
         return results
 
+    # Build cumulative char offsets per segment so we can map word positions to timestamps.
+    seg_offsets: list[tuple[int, float]] = []  # (char_start_of_segment, seg["start"])
+    if timestamps:
+        offset = 0
+        for seg in timestamps:
+            seg_offsets.append((offset, float(seg.get("start", 0.0))))
+            offset += len(seg.get("text", "")) + 1  # +1 for the joining space
+
     idx = 0
     start = 0
     while start < len(words):
         end = min(start + chunk_size, len(words))
         chunk_text = " ".join(words[start:end])
 
-        # Approximate timestamp: find the segment that covers word[start]
+        # Approximate timestamp: find the last segment whose char offset <= chunk's char position.
         timestamp_start = 0.0
-        if timestamps:
-            char_pos = len(" ".join(words[:start]))
-            for seg in timestamps:
-                if seg.get("start", 0) is not None:
-                    timestamp_start = seg["start"]
+        if seg_offsets:
+            char_pos = len(" ".join(words[:start])) + (1 if start > 0 else 0)
+            for seg_char_start, seg_time in seg_offsets:
+                if seg_char_start <= char_pos:
+                    timestamp_start = seg_time
+                else:
                     break
 
         results.append({
