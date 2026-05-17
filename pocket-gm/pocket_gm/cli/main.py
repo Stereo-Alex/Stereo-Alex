@@ -1,6 +1,6 @@
 import typer
 
-from pocket_gm.cli.commands import campaigns
+from pocket_gm.cli.commands import campaigns, ingest
 
 app = typer.Typer(
     name="pocket-gm",
@@ -9,6 +9,7 @@ app = typer.Typer(
 )
 
 app.add_typer(campaigns.app, name="campaign")
+app.add_typer(ingest.app, name="ingest")
 
 
 if __name__ == "__main__":

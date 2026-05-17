@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from pocket_gm.ingestion.pdf_loader import RawChunk
+
+
+@dataclass
+class Chunk:
+    text: str          # chunk text, prefixed with heading context
+    page: int
+    heading: str
+    filename: str
+    chunk_index: int
+    source_type: str   # "pdf" | "markdown" | "transcript"
+
+
+def _split_words(text: str, size: int, overlap: int) -> list[str]:
+    words = text.split()
+    if not words:
+        return []
+    windows: list[str] = []
+    start = 0
+    while start < len(words):
+        end = min(start + size, len(words))
+        windows.append(" ".join(words[start:end]))
+        if end == len(words):
+            break
+        start += size - overlap
+    return windows
+
+
+def chunk_pdf_pages(pages: list[RawChunk], chunk_size: int = 512, chunk_overlap: int = 64) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    idx = 0
+    for page in pages:
+        prefix = f"{page.heading} > " if page.heading else ""
+        windows = _split_words(page.text, chunk_size, chunk_overlap)
+        for window in windows:
+            chunks.append(Chunk(
+                text=prefix + window,
+                page=page.page,
+                heading=page.heading,
+                filename=page.filename,
+                chunk_index=idx,
+                source_type="pdf",
+            ))
+            idx += 1
+    return chunks
+
+
+def chunk_markdown(text: str, filename: str, chunk_size: int = 256, chunk_overlap: int = 32) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    current_heading = ""
+    idx = 0
+    current_block: list[str] = []
+
+    def flush(heading: str) -> None:
+        nonlocal idx
+        if not current_block:
+            return
+        block_text = " ".join(current_block)
+        prefix = f"{heading} > " if heading else ""
+        for window in _split_words(block_text, chunk_size, chunk_overlap):
+            chunks.append(Chunk(
+                text=prefix + window,
+                page=0,
+                heading=heading,
+                filename=filename,
+                chunk_index=idx,
+                source_type="markdown",
+            ))
+            idx += 1
+        current_block.clear()
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            flush(current_heading)
+            current_heading = stripped.lstrip("#").strip()
+        elif stripped:
+            current_block.append(stripped)
+
+    flush(current_heading)
+    return chunks
+
+
+def chunk_transcript(
+    text: str,
+    filename: str,
+    session_number: int,
+    session_date: str,
+    chunk_size: int = 256,
+    chunk_overlap: int = 32,
+    timestamps: list[dict] | None = None,
+) -> list[dict]:
+    """Returns raw dicts (not Chunk) so timestamp metadata can be included."""
+    results: list[dict] = []
+    words = text.split()
+    if not words:
+        return results
+
+    idx = 0
+    start = 0
+    while start < len(words):
+        end = min(start + chunk_size, len(words))
+        chunk_text = " ".join(words[start:end])
+
+        # Approximate timestamp: find the segment that covers word[start]
+        timestamp_start = 0.0
+        if timestamps:
+            char_pos = len(" ".join(words[:start]))
+            for seg in timestamps:
+                if seg.get("start", 0) is not None:
+                    timestamp_start = seg["start"]
+                    break
+
+        results.append({
+            "text": chunk_text,
+            "chunk_index": idx,
+            "source_type": "transcript",
+            "filename": filename,
+            "session_number": session_number,
+            "session_date": session_date,
+            "timestamp_start": timestamp_start,
+        })
+        idx += 1
+        if end == len(words):
+            break
+        start += chunk_size - chunk_overlap
+
+    return results
