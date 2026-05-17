@@ -3,6 +3,7 @@ Shared fixtures for integration tests.
 
 Provides:
 - fake_embedder: deterministic BOW embedder (no model download needed)
+- real_embedder: spaCy en_core_web_md (300-dim GloVe, real semantic similarity)
 - sample_pdf_path: generates a test PDF with PyMuPDF
 - sample_vault_path: creates a mini Obsidian vault
 - sample_transcript_json_path: creates a JSON session transcript
@@ -52,6 +53,41 @@ class FakeEmbedder:
 @pytest.fixture(scope="session")
 def fake_embedder() -> FakeEmbedder:
     return FakeEmbedder()
+
+
+# ---------------------------------------------------------------------------
+# Real spaCy embedder (en_core_web_md — 300-dim GloVe word vectors)
+# Installed from: pip install https://github.com/explosion/spacy-models/
+#   releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl
+# ---------------------------------------------------------------------------
+
+class SpaCyEmbedder:
+    """Real ML embedder using spaCy en_core_web_md (300-dim GloVe vectors).
+
+    Produces genuine semantic similarity — texts about the same topic score
+    high even without exact word overlap.
+    """
+
+    def __init__(self):
+        import spacy
+        self._nlp = spacy.load("en_core_web_md")
+        self.dim = self._nlp.vocab.vectors_length  # 300
+
+    def _encode(self, text: str) -> np.ndarray:
+        vec = self._nlp(text).vector.astype(np.float32)
+        norm = np.linalg.norm(vec)
+        return vec / norm if norm > 0 else vec
+
+    def embed(self, texts: list[str], batch_size: int = 64) -> np.ndarray:
+        return np.stack([self._encode(t) for t in texts])
+
+    def embed_one(self, text: str) -> np.ndarray:
+        return self._encode(text)
+
+
+@pytest.fixture(scope="session")
+def real_embedder() -> SpaCyEmbedder:
+    return SpaCyEmbedder()
 
 
 # ---------------------------------------------------------------------------
