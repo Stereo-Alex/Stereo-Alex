@@ -208,3 +208,19 @@ class Store:
         self._conn.execute(f"DROP TABLE IF EXISTS {table_name}_meta")
         self._conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         self._conn.commit()
+
+    def list_sessions(self, table_name: str) -> list[dict]:
+        """Return distinct sessions with chunk counts, ordered by session number."""
+        if not self._table_exists_raw(table_name):
+            return []
+        rows = self._conn.execute(
+            f"SELECT session_number, session_date, COUNT(*) AS chunk_count "
+            f"FROM {table_name}_meta "
+            f"WHERE session_number > 0 "
+            f"GROUP BY session_number, session_date "
+            f"ORDER BY session_number"
+        ).fetchall()
+        return [
+            {"session_number": r["session_number"], "session_date": r["session_date"], "chunk_count": r["chunk_count"]}
+            for r in rows
+        ]
