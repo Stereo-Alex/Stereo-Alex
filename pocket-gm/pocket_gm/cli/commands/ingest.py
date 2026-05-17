@@ -14,7 +14,7 @@ from pocket_gm.ingestion.chunker import Chunk, chunk_markdown, chunk_obsidian_no
 from pocket_gm.ingestion.embedder import Embedder
 from pocket_gm.ingestion.obsidian_loader import load_obsidian_vault
 from pocket_gm.ingestion.pdf_loader import load_pdf
-from pocket_gm.retrieval.store import Store, notes_table, sourcebook_table
+from pocket_gm.retrieval.store import Store, notes_table, sourcebook_table, sessions_table
 
 app = typer.Typer(help="Ingest campaign materials")
 console = Console()
@@ -184,3 +184,150 @@ def ingest_obsidian(
 
     for file_hash, filename, chunk_count in note_chunk_map:
         mark_ingested(registry_path, file_hash, filename, chunk_count)
+
+
+@app.command("gdrive")
+def ingest_gdrive(
+    folder_url: str = typer.Argument(..., help="Google Drive folder URL or ID"),
+    campaign: str = typer.Option(..., "--campaign", "-c", help="Campaign ID"),
+    credentials: Path = typer.Option(
+        Path("credentials.json"),
+        "--credentials",
+        help="Path to Google OAuth2 credentials JSON",
+    ),
+    token: Path = typer.Option(
+        Path("~/.pocket-gm/gdrive_token.json").expanduser(),
+        "--token",
+        help="Path to cached OAuth2 token (created automatically)",
+    ),
+    audio: bool = typer.Option(False, "--audio", help="Also download audio files"),
+    force: bool = typer.Option(False, "--force", "-f", help="Re-ingest already indexed files"),
+):
+    """Sync a Google Drive folder and ingest supported files."""
+    try:
+        from pocket_gm.ingestion.drive_loader import (
+            build_service,
+            parse_drive_id,
+            sync_folder,
+        )
+        from pocket_gm.ingestion.audio_transcriber import transcribe, save_transcript
+        from pocket_gm.ingestion.chunker import chunk_transcript
+    except ImportError:
+        console.print(
+            "[red]Google Drive support requires extra dependencies.[/red]\n"
+            "Install with: [bold]pip install 'pocket-gm[gdrive]'[/bold]"
+        )
+        raise typer.Exit(1)
+
+    cfg, camp = _require_campaign(campaign)
+
+    folder_id = parse_drive_id(folder_url)
+    cache_dir = cfg.campaigns_dir / campaign / "gdrive_cache"
+    manifest_path = cfg.campaigns_dir / campaign / "gdrive_manifest.json"
+
+    console.print(f"Connecting to Google Drive (folder [bold]{folder_id}[/bold])...")
+    try:
+        service = build_service(token_path=token, credentials_path=credentials)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+    with console.status("Syncing files from Drive..."):
+        result = sync_folder(
+            service,
+            folder_id,
+            cache_dir=cache_dir,
+            manifest_path=manifest_path,
+            include_audio=audio,
+        )
+
+    if result.errors:
+        for err in result.errors:
+            console.print(f"[yellow]Warning:[/yellow] {err}")
+
+    console.print(
+        f"Drive sync: [green]{len(result.downloaded)} downloaded[/green], "
+        f"[dim]{result.skipped} skipped[/dim]"
+    )
+
+    if not result.downloaded:
+        return
+
+    registry_path = get_registry_path(cfg.campaigns_dir, campaign)
+
+    # Separate documents from audio
+    audio_exts = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".mp4"}
+    doc_paths = [p for p in result.downloaded if p.suffix.lower() not in audio_exts]
+    audio_paths = [p for p in result.downloaded if p.suffix.lower() in audio_exts]
+
+    # Ingest documents (PDFs, text, markdown)
+    pdf_chunks: list[Chunk] = []
+    notes_chunks: list[Chunk] = []
+    pdf_registry: list[tuple[str, str, int]] = []
+    notes_registry: list[tuple[str, str, int]] = []
+
+    for doc in doc_paths:
+        file_hash = hash_file(doc)
+        if not force and is_ingested(registry_path, file_hash):
+            console.print(f"[dim]Already ingested: {doc.name}[/dim]")
+            continue
+
+        if doc.suffix.lower() == ".pdf":
+            console.print(f"  Loading PDF: [bold]{doc.name}[/bold]")
+            pages = load_pdf(doc)
+            chunks = chunk_pdf_pages(pages, cfg.chunking.sourcebook.chunk_size, cfg.chunking.sourcebook.chunk_overlap)
+            pdf_chunks.extend(chunks)
+            pdf_registry.append((file_hash, doc.name, len(chunks)))
+            console.print(f"    {len(pages)} pages → {len(chunks)} chunks")
+        else:
+            text = doc.read_text(encoding="utf-8", errors="replace")
+            chunks = chunk_markdown(text, doc.name, cfg.chunking.notes.chunk_size, cfg.chunking.notes.chunk_overlap)
+            notes_chunks.extend(chunks)
+            notes_registry.append((file_hash, doc.name, len(chunks)))
+            console.print(f"  {doc.name}: {len(chunks)} chunks")
+
+    if pdf_chunks:
+        _ingest_chunks(pdf_chunks, sourcebook_table(campaign), campaign, cfg, "Drive PDFs")
+        for file_hash, filename, count in pdf_registry:
+            mark_ingested(registry_path, file_hash, filename, count)
+
+    if notes_chunks:
+        _ingest_chunks(notes_chunks, notes_table(campaign), campaign, cfg, "Drive documents")
+        for file_hash, filename, count in notes_registry:
+            mark_ingested(registry_path, file_hash, filename, count)
+
+    # Transcribe and ingest audio (if --audio flag was set)
+    for audio_file in audio_paths:
+        file_hash = hash_file(audio_file)
+        if not force and is_ingested(registry_path, file_hash):
+            console.print(f"[dim]Already ingested audio: {audio_file.name}[/dim]")
+            continue
+
+        console.print(f"  Transcribing [bold]{audio_file.name}[/bold] (this may take a while)...")
+        try:
+            transcript = transcribe(
+                audio_file,
+                model_size=cfg.whisper.model_size,
+                language=cfg.whisper.language,
+                device=cfg.whisper.device,
+            )
+            transcripts_dir = cfg.campaigns_dir / campaign / "transcripts"
+            save_transcript(transcript, transcripts_dir, audio_file.stem)
+
+            raw_chunks = chunk_transcript(
+                transcript.full_text,
+                filename=audio_file.name,
+                session_number=0,
+                session_date="",
+                chunk_size=cfg.chunking.sessions.chunk_size,
+                chunk_overlap=cfg.chunking.sessions.chunk_overlap,
+            )
+            embedder = Embedder(cfg.embedding.model)
+            texts = [c["text"] for c in raw_chunks]
+            embeddings = embedder.embed(texts, batch_size=cfg.embedding.batch_size)
+            store = Store(cfg.lancedb_path)
+            store.add_documents(sessions_table(campaign), raw_chunks, embeddings, campaign)
+            mark_ingested(registry_path, file_hash, audio_file.name, len(raw_chunks))
+            console.print(f"    [green]Transcribed and ingested[/green] {len(raw_chunks)} chunks")
+        except Exception as e:
+            console.print(f"[yellow]Warning: could not process audio {audio_file.name}: {e}[/yellow]")
