@@ -1,0 +1,12 @@
+[
+  {
+    "question": "Who is the Stag Lord?",
+    "expected_filename": "kingmaker_part1.pdf",
+    "expected_text_fragment": "stag lord"
+  },
+  {
+    "question": "Where is the Stag Lord's fort located?",
+    "expected_filename": "kingmaker_part1.pdf",
+    "expected_text_fragment": "tuskwater"
+  }
+]
