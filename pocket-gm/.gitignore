@@ -6,3 +6,10 @@ dist/
 build/
 .venv/
 .env
+
+# Streamlit secrets — NEVER commit this file
+.streamlit/secrets.toml
+
+# Pocket GM runtime data
+tests/fixtures/sample.pdf
+tests/fixtures/sample_transcript.json

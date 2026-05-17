@@ -28,6 +28,11 @@ serve = [
     "fastapi>=0.111",
     "uvicorn>=0.30",
 ]
+web = [
+    "streamlit>=1.35",
+    "anthropic>=0.30",
+    "pandas>=2",
+]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
