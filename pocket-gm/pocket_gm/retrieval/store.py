@@ -49,7 +49,9 @@ class Store:
             db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._db_path = db_path
-        self._conn = sqlite3.connect(str(db_path))
+        # check_same_thread=False is required because the router's query_all
+        # dispatches queries via asyncio.run_in_executor (thread pool).
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         sqlite_vec.load(self._conn)
         self._conn.execute("PRAGMA journal_mode=WAL")

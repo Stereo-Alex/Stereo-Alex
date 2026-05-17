@@ -1,0 +1,26 @@
+[
+  {
+    "start": 0.0,
+    "end": 10.5,
+    "text": "The party arrived at the Stag Lord's fort.",
+    "speaker": "DM"
+  },
+  {
+    "start": 10.5,
+    "end": 25.0,
+    "text": "We sneak around the eastern wall to avoid the guards.",
+    "speaker": "Player"
+  },
+  {
+    "start": 25.0,
+    "end": 45.0,
+    "text": "Akiros Ismort opens the gate for the party and surrenders immediately.",
+    "speaker": "DM"
+  },
+  {
+    "start": 45.0,
+    "end": 60.0,
+    "text": "The Stag Lord confronts the party on the battlements. He is clearly drunk.",
+    "speaker": "DM"
+  }
+]
