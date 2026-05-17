@@ -24,6 +24,7 @@ def build_prompt(
     notes_chunks: list[RetrievedChunk],
     session_chunks: list[RetrievedChunk],
     threshold: float = 0.35,
+    json_mode: bool = False,
 ) -> tuple[str, list[tuple[int, RetrievedChunk]]]:
     """
     Returns (prompt_text, index_map) where index_map is [(citation_number, chunk), ...].
@@ -55,17 +56,28 @@ def build_prompt(
 
     body = "\n\n---\n\n".join(sections)
 
+    if json_mode:
+        instructions = """INSTRUCTIONS:
+- Answer using ONLY the sources above.
+- If information is not present in the sources, set answer to "Not found in available sources." and citations to [].
+- Do NOT invent, speculate, or add information not in the sources above.
+
+Respond ONLY with valid JSON in this exact format:
+{"answer": "...", "citations": [1, 2, 3]}"""
+    else:
+        instructions = """INSTRUCTIONS:
+- Answer using ONLY the sources above.
+- Cite every fact with its citation number like [1] or [2][3].
+- If information is not present in the sources, say exactly: "Not found in available sources."
+- Do NOT invent, speculate, or add information not in the sources above.
+- Keep the answer factual and concise."""
+
     prompt = f"""{body}
 
 ---
 
 QUESTION: {question}
 
-INSTRUCTIONS:
-- Answer using ONLY the sources above.
-- Cite every fact with its citation number like [1] or [2][3].
-- If information is not present in the sources, say exactly: "Not found in available sources."
-- Do NOT invent, speculate, or add information not in the sources above.
-- Keep the answer factual and concise."""
+{instructions}"""
 
     return prompt, index_map

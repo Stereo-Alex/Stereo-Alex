@@ -48,3 +48,39 @@ def test_empty_sources_returns_empty():
     prompt, index_map = build_prompt("anything?", [], [], [], threshold=0.5)
     assert prompt == ""
     assert index_map == []
+
+
+# ---------------------------------------------------------------------------
+# R6 — json_mode tests
+# ---------------------------------------------------------------------------
+
+def test_json_mode_prompt_contains_json_format_instruction():
+    """When json_mode=True the prompt ends with the JSON format instruction."""
+    prompt, _ = build_prompt("Who is the Stag Lord?", [make_chunk("pdf")], [], [], threshold=0.5, json_mode=True)
+    assert '{"answer": "...", "citations": [1, 2, 3]}' in prompt
+
+
+def test_json_mode_prompt_omits_bracket_citation_instruction():
+    """json_mode prompt should NOT instruct the model to use [1][2] inline format."""
+    prompt, _ = build_prompt("test?", [make_chunk("pdf")], [], [], threshold=0.5, json_mode=True)
+    assert "Cite every fact with its citation number like [1]" not in prompt
+
+
+def test_default_mode_uses_bracket_citations():
+    """Default (json_mode=False) prompt still uses [1][2] citation format."""
+    prompt, _ = build_prompt("test?", [make_chunk("pdf")], [], [], threshold=0.5)
+    assert "[1]" in prompt or "citation number" in prompt
+
+
+def test_json_mode_index_map_unchanged():
+    """json_mode does not alter the index_map produced."""
+    _, map_normal = build_prompt("q?", [make_chunk("pdf"), make_chunk("markdown")], [], [], threshold=0.5)
+    _, map_json = build_prompt("q?", [make_chunk("pdf"), make_chunk("markdown")], [], [], threshold=0.5, json_mode=True)
+    assert len(map_normal) == len(map_json) == 2
+
+
+def test_json_mode_empty_sources_still_returns_empty():
+    """json_mode=True with no chunks above threshold still returns empty strings."""
+    prompt, index_map = build_prompt("anything?", [], [], [], threshold=0.5, json_mode=True)
+    assert prompt == ""
+    assert index_map == []

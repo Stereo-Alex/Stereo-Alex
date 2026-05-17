@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
@@ -57,3 +58,49 @@ def validate_citations(
         uncited_sentences=uncited,
         index_map=index_map,
     )
+
+
+def parse_json_answer(
+    raw: str,
+    index_map: list[tuple[int, RetrievedChunk]],
+) -> GroundedAnswer:
+    """
+    Parse a JSON-mode LLM response into a GroundedAnswer.
+
+    Expected JSON shape: {"answer": "...", "citations": [1, 2, 3]}
+
+    If JSON parsing fails, falls back to ``validate_citations`` on the raw
+    text so the caller always gets a usable result.
+
+    The ``citations`` array is treated as the authoritative source of citation
+    IDs; only IDs that exist in *index_map* are kept.
+    """
+    valid_ids = {idx for idx, _ in index_map}
+
+    # Try to extract JSON from the response.  Some models wrap it in markdown
+    # code fences; strip those before parsing.
+    cleaned = raw.strip()
+    # Strip ```json ... ``` or ``` ... ``` fences if present
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", cleaned)
+    if fence_match:
+        cleaned = fence_match.group(1).strip()
+
+    try:
+        payload = json.loads(cleaned)
+        answer_text = str(payload.get("answer", ""))
+        raw_citations = payload.get("citations", [])
+        if not isinstance(raw_citations, list):
+            raw_citations = []
+        citations_used = sorted(
+            int(c) for c in raw_citations
+            if isinstance(c, (int, float)) and int(c) in valid_ids
+        )
+        return GroundedAnswer(
+            text=answer_text,
+            citations_used=citations_used,
+            uncited_sentences=[],  # JSON mode — citations array is authoritative
+            index_map=index_map,
+        )
+    except (json.JSONDecodeError, ValueError, TypeError):
+        # Graceful fallback: treat raw text as a normal citation-inline answer
+        return validate_citations(raw, index_map)
