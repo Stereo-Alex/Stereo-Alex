@@ -76,6 +76,21 @@ def test_trailing_uncited_text_without_punctuation_flagged():
     assert not result.is_fully_grounded
 
 
+def test_decimal_number_does_not_break_grounding():
+    """A period inside a number (e.g. '3.5 damage') must not split a cited sentence."""
+    index_map = [make_chunk(1)]
+    result = validate_citations("The longsword deals 3.5 damage on average [1].", index_map)
+    assert result.is_fully_grounded
+    assert result.uncited_sentences == []
+
+
+def test_abbreviation_period_does_not_break_grounding():
+    index_map = [make_chunk(1)]
+    result = validate_citations("He has a DC 18 vs. poison check [1].", index_map)
+    assert result.is_fully_grounded
+    assert result.uncited_sentences == []
+
+
 def test_empty_answer():
     result = validate_citations("", [])
     assert result.citations_used == []

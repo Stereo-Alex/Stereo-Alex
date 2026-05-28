@@ -28,20 +28,26 @@ def _require_campaign(campaign_id: str):
     return cfg, campaign
 
 
-def _ingest_chunks(chunks: list[Chunk] | list[dict], table_name: str, campaign_id: str, cfg, label: str) -> None:
+def _ingest_chunks(chunks: list[Chunk] | list[dict], table_name: str, campaign_id: str, cfg, label: str, replace: bool = False) -> None:
     embedder = Embedder(cfg.embedding.model)
     store = Store(cfg.lancedb_path)
 
     texts = [c["text"] if isinstance(c, dict) else c.text for c in chunks]
 
-    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
-        p.add_task(f"Embedding {len(texts)} chunks...")
-        embeddings = embedder.embed(texts, batch_size=cfg.embedding.batch_size)
-
     raw = [c if isinstance(c, dict) else {
         "text": c.text, "source_type": c.source_type, "filename": c.filename,
         "page": c.page, "heading": c.heading, "chunk_index": c.chunk_index,
     } for c in chunks]
+
+    # On --force re-ingestion, remove the file's existing chunks first so they
+    # are replaced rather than duplicated in the vector store.
+    if replace:
+        for fname in {r.get("filename", "") for r in raw if r.get("filename")}:
+            store.delete_by_filename(table_name, fname)
+
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
+        p.add_task(f"Embedding {len(texts)} chunks...")
+        embeddings = embedder.embed(texts, batch_size=cfg.embedding.batch_size)
 
     store.add_documents(table_name, raw, embeddings, campaign_id)
     console.print(f"[green]Ingested[/green] {len(chunks)} chunks from {label}")
@@ -70,7 +76,7 @@ def ingest_pdf(
     pages = load_pdf(file)
     chunks = chunk_pdf_pages(pages, cfg.chunking.sourcebook.chunk_size, cfg.chunking.sourcebook.chunk_overlap)
     console.print(f"  {len(pages)} pages → {len(chunks)} chunks")
-    _ingest_chunks(chunks, sourcebook_table(campaign), campaign, cfg, file.name)
+    _ingest_chunks(chunks, sourcebook_table(campaign), campaign, cfg, file.name, replace=force)
     mark_ingested(registry_path, file_hash, file.name, len(chunks))
 
 
@@ -121,7 +127,7 @@ def ingest_notes(
             console.print("[dim]All files already ingested.[/dim]")
         return
 
-    _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(pending)} file(s)")
+    _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(pending)} file(s)", replace=force)
 
     # Mark all successfully ingested files
     for file_hash, filename, chunk_count in pending:
@@ -177,7 +183,7 @@ def ingest_obsidian(
             console.print("[yellow]No chunks produced — notes may be empty.[/yellow]")
         return
 
-    _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(note_chunk_map)} Obsidian notes")
+    _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(note_chunk_map)} Obsidian notes", replace=force)
 
     for file_hash, filename, chunk_count in note_chunk_map:
         mark_ingested(registry_path, file_hash, filename, chunk_count)
@@ -284,12 +290,12 @@ def ingest_gdrive(
             console.print(f"  {doc.name}: {len(chunks)} chunks")
 
     if pdf_chunks:
-        _ingest_chunks(pdf_chunks, sourcebook_table(campaign), campaign, cfg, "Drive PDFs")
+        _ingest_chunks(pdf_chunks, sourcebook_table(campaign), campaign, cfg, "Drive PDFs", replace=force)
         for file_hash, filename, count in pdf_registry:
             mark_ingested(registry_path, file_hash, filename, count)
 
     if notes_chunks:
-        _ingest_chunks(notes_chunks, notes_table(campaign), campaign, cfg, "Drive documents")
+        _ingest_chunks(notes_chunks, notes_table(campaign), campaign, cfg, "Drive documents", replace=force)
         for file_hash, filename, count in notes_registry:
             mark_ingested(registry_path, file_hash, filename, count)
 

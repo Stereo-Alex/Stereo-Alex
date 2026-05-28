@@ -21,11 +21,6 @@ class GroundedAnswer:
 
 _CITATION_RE = re.compile(r"\[(\d+)\]")
 _SENTENCE_RE = re.compile(r"[^.!?]+[.!?]+")
-# A sentence body up to its terminal punctuation, plus any citation markers
-# that immediately trail it. This captures both citation styles:
-#   "fact [1]."   -> marker inside the body (before the period)
-#   "fact. [1]"   -> marker in the trailing group (after the period)
-_SENTENCE_WITH_CITES_RE = re.compile(r"([^.!?]*[.!?]+)(\s*(?:\[\d+\]\s*)*)")
 
 
 def _clean_uncited(text: str) -> str:
@@ -56,32 +51,42 @@ def validate_citations(
             index_map=index_map,
         )
 
-    # Sentence-first validation. Each sentence (its body up to terminal
-    # punctuation, plus any markers trailing it) is grounded only if it carries
-    # a citation marker whose id was actually retrieved.
+    # Split the answer on *valid* citation markers only. A prose segment is
+    # grounded iff it is immediately followed by one of these markers.
     #
-    # This is deliberately strict about hallucinated ids: "The dragon has 300
-    # HP [7]." when only [1]..[3] exist is NOT grounded, because the model can
-    # otherwise fabricate both the fact and a plausible-looking citation number
-    # and slip past the check.
-    uncited: list[str] = []
-    last_end = 0
-    for m in _SENTENCE_WITH_CITES_RE.finditer(answer_text):
-        last_end = m.end()
-        unit = m.group(0)
-        if not unit.strip():
-            continue
-        marker_ids = {int(c) for c in _CITATION_RE.findall(unit)}
-        if not (marker_ids & valid_ids):
-            uncited.append(_clean_uncited(unit))
+    # Splitting on valid ids (rather than any "[n]") is what makes the check
+    # robust on two fronts:
+    #   - Hallucinated ids — "300 HP [7]." when only [1]..[3] exist — are not
+    #     split points, so "[7]" stays inline as text and provides no grounding;
+    #     the segment is flagged. The model can't fabricate both a fact and a
+    #     citation number and slip past.
+    #   - Periods inside numbers/abbreviations ("3.5 damage", "vs.") are never
+    #     split points, so they don't fracture a correctly-cited sentence.
+    if valid_ids:
+        split_re = re.compile(r"(\[(?:" + "|".join(str(i) for i in sorted(valid_ids)) + r")\])")
+        parts = split_re.split(answer_text)
+    else:
+        parts = [answer_text]
 
-    # Any trailing prose past the last terminal punctuation is still a claim
-    # (e.g. an answer with no closing period) and must be checked too.
-    trailing = answer_text[last_end:]
-    if trailing.strip():
-        marker_ids = {int(c) for c in _CITATION_RE.findall(trailing)}
-        if not (marker_ids & valid_ids):
-            uncited.append(_clean_uncited(trailing))
+    uncited: list[str] = []
+    for i, part in enumerate(parts):
+        # Even indices are prose segments; odd indices are valid markers.
+        if i % 2 == 1:
+            continue
+        if not part.strip():
+            continue
+        # Grounded iff a valid marker immediately follows this segment.
+        if i + 1 < len(parts):
+            continue
+        # Trailing/unfollowed segment — flag each sentence it contains.
+        for sentence in _SENTENCE_RE.findall(part):
+            cleaned = _clean_uncited(sentence)
+            if cleaned and any(ch.isalnum() for ch in cleaned):
+                uncited.append(cleaned)
+        # Any residual text with no terminal punctuation is still a claim.
+        residual = _clean_uncited(_SENTENCE_RE.sub("", part))
+        if residual and any(ch.isalnum() for ch in residual):
+            uncited.append(residual)
 
     return GroundedAnswer(
         text=answer_text,

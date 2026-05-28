@@ -13,3 +13,7 @@ build/
 # Pocket GM runtime data
 tests/fixtures/sample.pdf
 tests/fixtures/sample_transcript.json
+
+# Coverage artifacts
+.coverage
+htmlcov/

@@ -211,6 +211,28 @@ class Store:
         self._conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         self._conn.commit()
 
+    def delete_by_filename(self, table_name: str, filename: str) -> int:
+        """Delete all chunks originating from *filename*. Returns rows removed.
+
+        Used by --force re-ingestion so a file's chunks are *replaced* rather
+        than duplicated (duplicates would let the same passage score multiple
+        times and skew retrieval).
+        """
+        if not self._table_exists_raw(table_name):
+            return 0
+        rows = self._conn.execute(
+            f"SELECT rowid FROM {table_name}_meta WHERE filename = ?",
+            (filename,),
+        ).fetchall()
+        rowids = [r["rowid"] for r in rows]
+        if not rowids:
+            return 0
+        placeholders = ",".join("?" * len(rowids))
+        self._conn.execute(f"DELETE FROM {table_name} WHERE rowid IN ({placeholders})", rowids)
+        self._conn.execute(f"DELETE FROM {table_name}_meta WHERE rowid IN ({placeholders})", rowids)
+        self._conn.commit()
+        return len(rowids)
+
     def list_sessions(self, table_name: str) -> list[dict]:
         """Return distinct sessions with chunk counts, ordered by session number."""
         if not self._table_exists_raw(table_name):

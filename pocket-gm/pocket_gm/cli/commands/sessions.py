@@ -79,6 +79,11 @@ def add_session(
     store = Store(cfg.lancedb_path)
     texts = [c["text"] for c in chunks]
 
+    # On --force re-ingestion, drop this session's existing chunks so they are
+    # replaced rather than duplicated.
+    if force:
+        store.delete_by_filename(sessions_table(campaign), f"{stem}.txt")
+
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as p:
         p.add_task(f"Embedding {len(texts)} chunks...")
         embeddings = embedder.embed(texts, batch_size=cfg.embedding.batch_size)

@@ -62,3 +62,34 @@ def test_add_appends_to_existing_table(store):
     store.add_documents(table, chunks2, emb, "test")
     results = store.query(table, make_embedding(), top_k=10)
     assert len(results) == 2
+
+
+def test_delete_by_filename_removes_only_that_file(store):
+    table = sourcebook_table("test")
+    emb = np.array([make_embedding()])
+    store.add_documents(table, [{"text": "From A.", "source_type": "pdf", "filename": "a.pdf",
+                                 "page": 1, "heading": "", "chunk_index": 0}], emb, "test")
+    store.add_documents(table, [{"text": "From B.", "source_type": "pdf", "filename": "b.pdf",
+                                 "page": 1, "heading": "", "chunk_index": 0}], emb, "test")
+    assert store.count(table) == 2
+
+    removed = store.delete_by_filename(table, "a.pdf")
+    assert removed == 1
+    assert store.count(table) == 1
+    # The surviving row is b.pdf, and it is still queryable.
+    results = store.query(table, make_embedding(), top_k=10)
+    assert len(results) == 1
+    assert results[0].filename == "b.pdf"
+
+
+def test_delete_by_filename_missing_table_is_noop(store):
+    assert store.delete_by_filename(sourcebook_table("ghost"), "x.pdf") == 0
+
+
+def test_delete_by_filename_unknown_file_is_noop(store):
+    table = notes_table("test")
+    store.add_documents(table, [{"text": "note", "source_type": "markdown", "filename": "n.md",
+                                 "page": 0, "heading": "", "chunk_index": 0}],
+                        np.array([make_embedding()]), "test")
+    assert store.delete_by_filename(table, "absent.md") == 0
+    assert store.count(table) == 1
