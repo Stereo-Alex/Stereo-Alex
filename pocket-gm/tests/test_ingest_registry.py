@@ -99,6 +99,19 @@ def test_hash_file_matches_sha256(tmp_path):
     assert hash_file(f) == expected
 
 
+def test_hash_file_distinguishes_files_sharing_a_large_header(tmp_path):
+    """Two files with an identical 128 KB header but different tails must hash
+    differently — guards against the old first-64 KB-only behaviour that caused
+    false 'already ingested' skips."""
+    shared_header = b"X" * (128 * 1024)
+    f1 = tmp_path / "book_a.pdf"
+    f2 = tmp_path / "book_b.pdf"
+    f1.write_bytes(shared_header + b"unique tail A")
+    f2.write_bytes(shared_header + b"unique tail B")
+
+    assert hash_file(f1) != hash_file(f2)
+
+
 # ── get_registry_path ─────────────────────────────────────────────────────────
 
 def test_get_registry_path_creates_campaign_dir(tmp_path):

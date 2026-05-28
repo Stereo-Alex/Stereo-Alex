@@ -14,7 +14,17 @@ def log_query(
     question: str,
     result: GroundedAnswer,
     llm_model: str,
+    all_retrieved: list[RetrievedChunk] | None = None,
 ) -> None:
+    """Append a query record to queries.ndjson.
+
+    ``all_retrieved`` should be the *full* set of retrieved chunks (every
+    top-k result from every store, before the relevance gate). Logging the
+    complete score distribution — not just the above-threshold chunks that
+    made it into the answer — is what lets ``eval calibrate`` recommend
+    *lowering* the threshold; otherwise calibration only ever sees scores that
+    already passed the gate and can only push it higher.
+    """
     logs_path.mkdir(parents=True, exist_ok=True)
     log_file = logs_path / "queries.ndjson"
 
@@ -39,6 +49,9 @@ def log_query(
         "uncited_sentences": result.uncited_sentences,
         "retrieved_chunks": [chunk_dict(c) for _, c in result.index_map],
     }
+
+    if all_retrieved is not None:
+        record["all_scores"] = [round(c.score, 4) for c in all_retrieved]
 
     with open(log_file, "a") as f:
         f.write(json.dumps(record) + "\n")

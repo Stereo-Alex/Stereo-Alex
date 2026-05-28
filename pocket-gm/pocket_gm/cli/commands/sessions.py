@@ -5,10 +5,10 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
 
 from pocket_gm.core.campaign import get_campaign
 from pocket_gm.core.config import load_config
+from pocket_gm.core.ingest_registry import get_registry_path, hash_file, is_ingested, mark_ingested
 from pocket_gm.ingestion.audio_transcriber import load_transcript_json, save_transcript, transcribe
 from pocket_gm.ingestion.chunker import chunk_transcript
 from pocket_gm.ingestion.embedder import Embedder
@@ -24,6 +24,7 @@ def add_session(
     campaign: str = typer.Option(..., "--campaign", "-c", help="Campaign ID"),
     date: str = typer.Option(..., "--date", "-d", help="Session date (YYYY-MM-DD)"),
     number: int = typer.Option(..., "--number", "-n", help="Session number"),
+    force: bool = typer.Option(False, "--force", "-f", help="Re-ingest even if already indexed"),
 ):
     """Transcribe and ingest a session audio recording."""
     cfg = load_config()
@@ -35,6 +36,13 @@ def add_session(
     if not audio.exists():
         console.print(f"[red]File not found:[/red] {audio}")
         raise typer.Exit(1)
+
+    # Idempotency: skip if this exact audio file was already ingested.
+    registry_path = get_registry_path(cfg.campaigns_dir, campaign)
+    file_hash = hash_file(audio)
+    if not force and is_ingested(registry_path, file_hash):
+        console.print(f"[dim]Already ingested: {audio.name} (use --force to re-ingest)[/dim]")
+        return
 
     raw_dir = cfg.campaigns_dir.parent / "raw" / "transcripts" / campaign
     stem = f"session_{number:02d}_{date}"
@@ -76,4 +84,5 @@ def add_session(
         embeddings = embedder.embed(texts, batch_size=cfg.embedding.batch_size)
 
     store.add_documents(sessions_table(campaign), chunks, embeddings, campaign)
+    mark_ingested(registry_path, file_hash, audio.name, len(chunks))
     console.print(f"[green]Session {number} ingested[/green] ({date})")

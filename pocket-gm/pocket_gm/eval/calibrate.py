@@ -72,10 +72,18 @@ def calibrate_threshold(logs_path: Path, campaign_id: str) -> CalibrationResult:
                     continue
                 if record.get("campaign_id") != campaign_id:
                     continue
-                for chunk in record.get("retrieved_chunks", []):
-                    score = chunk.get("score")
-                    if isinstance(score, (int, float)):
-                        scores.append(float(score))
+                # Prefer the full score distribution (includes below-threshold
+                # results) when present; fall back to the above-threshold chunks
+                # for older log records that predate "all_scores".
+                if isinstance(record.get("all_scores"), list):
+                    for score in record["all_scores"]:
+                        if isinstance(score, (int, float)):
+                            scores.append(float(score))
+                else:
+                    for chunk in record.get("retrieved_chunks", []):
+                        score = chunk.get("score")
+                        if isinstance(score, (int, float)):
+                            scores.append(float(score))
 
     if not scores:
         return CalibrationResult(

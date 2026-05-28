@@ -12,8 +12,8 @@ from pocket_gm.core.logger import log_query
 from pocket_gm.ingestion.embedder import Embedder
 from pocket_gm.retrieval.router import query_all_sync
 from pocket_gm.retrieval.store import Store
-from pocket_gm.synthesis.grounding import parse_json_answer, validate_citations
-from pocket_gm.synthesis.ollama_client import OllamaClient
+from pocket_gm.synthesis.grounding import GroundedAnswer, parse_json_answer, validate_citations
+from pocket_gm.synthesis.llm import build_llm_client
 from pocket_gm.synthesis.prompt_builder import build_prompt
 
 app = typer.Typer()
@@ -39,6 +39,7 @@ def ask(
     # Retrieve from all three stores in parallel
     store = Store(cfg.lancedb_path)
     result = query_all_sync(store, campaign, query_vec, top_k=cfg.retrieval.top_k)
+    all_retrieved = result.sourcebook + result.notes + result.sessions
 
     # Retrieval gate
     if result.is_empty(cfg.retrieval.relevance_threshold):
@@ -48,6 +49,12 @@ def ask(
             title="Pocket GM — Not Found",
             border_style="yellow",
         ))
+        # Still log the (below-threshold) scores so calibration can see them.
+        log_query(
+            cfg.logs_path, campaign, question,
+            GroundedAnswer(text="", citations_used=[], uncited_sentences=[], index_map=[]),
+            cfg.llm.model, all_retrieved=all_retrieved,
+        )
         return
 
     # Build prompt and call LLM
@@ -60,14 +67,21 @@ def ask(
         json_mode=cfg.llm.json_citations,
     )
 
-    ollama = OllamaClient(base_url=cfg.llm.base_url, model=cfg.llm.model)
+    try:
+        llm = build_llm_client(cfg.llm)
+    except (RuntimeError, ImportError, ValueError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
 
-    if not ollama.is_available():
-        console.print(f"[red]Ollama is not running at {cfg.llm.base_url}.[/red] Start it with: [bold]ollama serve[/bold]")
+    if not llm.is_available():
+        if cfg.llm.provider.lower() == "ollama":
+            console.print(f"[red]Ollama is not running at {cfg.llm.base_url}.[/red] Start it with: [bold]ollama serve[/bold]")
+        else:
+            console.print(f"[red]LLM provider '{cfg.llm.provider}' is not available.[/red]")
         raise typer.Exit(1)
 
     with console.status("Thinking..."):
-        answer_text = ollama.generate(prompt, temperature=cfg.llm.temperature, max_tokens=cfg.llm.max_tokens)
+        answer_text = llm.generate(prompt, temperature=cfg.llm.temperature, max_tokens=cfg.llm.max_tokens)
 
     if cfg.llm.json_citations:
         grounded = parse_json_answer(answer_text, index_map)
@@ -108,4 +122,4 @@ def ask(
         console.print(table)
 
     # Log
-    log_query(cfg.logs_path, campaign, question, grounded, cfg.llm.model)
+    log_query(cfg.logs_path, campaign, question, grounded, cfg.llm.model, all_retrieved=all_retrieved)

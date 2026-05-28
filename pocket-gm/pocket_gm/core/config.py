@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 import yaml
+
+
+def _filter_known(cls, data: dict) -> dict:
+    """Keep only keys that map to fields on the dataclass *cls*.
+
+    Unknown keys in the YAML (e.g. a future config knob, or a typo) are
+    dropped rather than raising TypeError, so a slightly-out-of-date config
+    file never bricks every CLI command.
+    """
+    known = {f.name for f in fields(cls)}
+    return {k: v for k, v in data.items() if k in known}
 
 
 @dataclass
@@ -36,19 +46,21 @@ class WhisperConfig:
     model_size: str = "base"
     language: str = "en"
     device: str = "cpu"
+    diarize: bool = False
 
 
 @dataclass
 class ChunkConfig:
     chunk_size: int = 512
     chunk_overlap: int = 64
+    time_window_seconds: int = 0
 
 
 @dataclass
 class ChunkingConfig:
     sourcebook: ChunkConfig = field(default_factory=lambda: ChunkConfig(512, 64))
     notes: ChunkConfig = field(default_factory=lambda: ChunkConfig(256, 32))
-    sessions: ChunkConfig = field(default_factory=lambda: ChunkConfig(256, 32))
+    sessions: ChunkConfig = field(default_factory=lambda: ChunkConfig(256, 32, 120))
 
 
 @dataclass
@@ -83,18 +95,18 @@ def load_config(path: Path | None = None) -> Config:
         cfg.logs_path = Path(data["logs_path"]).expanduser()
 
     if emb := data.get("embedding"):
-        cfg.embedding = EmbeddingConfig(**emb)
+        cfg.embedding = EmbeddingConfig(**_filter_known(EmbeddingConfig, emb))
     if ret := data.get("retrieval"):
-        cfg.retrieval = RetrievalConfig(**ret)
+        cfg.retrieval = RetrievalConfig(**_filter_known(RetrievalConfig, ret))
     if llm := data.get("llm"):
-        cfg.llm = LLMConfig(**llm)
+        cfg.llm = LLMConfig(**_filter_known(LLMConfig, llm))
     if wh := data.get("whisper"):
-        cfg.whisper = WhisperConfig(**wh)
+        cfg.whisper = WhisperConfig(**_filter_known(WhisperConfig, wh))
     if ch := data.get("chunking"):
         cfg.chunking = ChunkingConfig(
-            sourcebook=ChunkConfig(**ch["sourcebook"]) if "sourcebook" in ch else ChunkConfig(512, 64),
-            notes=ChunkConfig(**ch["notes"]) if "notes" in ch else ChunkConfig(256, 32),
-            sessions=ChunkConfig(**ch["sessions"]) if "sessions" in ch else ChunkConfig(256, 32),
+            sourcebook=ChunkConfig(**_filter_known(ChunkConfig, ch["sourcebook"])) if "sourcebook" in ch else ChunkConfig(512, 64),
+            notes=ChunkConfig(**_filter_known(ChunkConfig, ch["notes"])) if "notes" in ch else ChunkConfig(256, 32),
+            sessions=ChunkConfig(**_filter_known(ChunkConfig, ch["sessions"])) if "sessions" in ch else ChunkConfig(256, 32, 120),
         )
 
     return cfg
@@ -127,11 +139,16 @@ def save_config(cfg: Config, path: Path | None = None) -> None:
             "model_size": cfg.whisper.model_size,
             "language": cfg.whisper.language,
             "device": cfg.whisper.device,
+            "diarize": cfg.whisper.diarize,
         },
         "chunking": {
             "sourcebook": {"chunk_size": cfg.chunking.sourcebook.chunk_size, "chunk_overlap": cfg.chunking.sourcebook.chunk_overlap},
             "notes": {"chunk_size": cfg.chunking.notes.chunk_size, "chunk_overlap": cfg.chunking.notes.chunk_overlap},
-            "sessions": {"chunk_size": cfg.chunking.sessions.chunk_size, "chunk_overlap": cfg.chunking.sessions.chunk_overlap},
+            "sessions": {
+                "chunk_size": cfg.chunking.sessions.chunk_size,
+                "chunk_overlap": cfg.chunking.sessions.chunk_overlap,
+                "time_window_seconds": cfg.chunking.sessions.time_window_seconds,
+            },
         },
     }
 

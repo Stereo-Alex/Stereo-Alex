@@ -41,6 +41,41 @@ def test_invalid_citation_id_ignored():
     assert 1 in result.citations_used
 
 
+def test_hallucinated_citation_id_flagged_as_uncited():
+    """A fact backed only by a non-existent citation id must NOT count as grounded."""
+    index_map = [make_chunk(1), make_chunk(2), make_chunk(3)]
+    # Marker before the period (style 1)
+    result = validate_citations("The dragon has 300 hit points [7].", index_map)
+    assert not result.is_fully_grounded
+    assert result.uncited_sentences == ["The dragon has 300 hit points."]
+    assert result.citations_used == []
+
+
+def test_hallucinated_citation_after_period_flagged():
+    """Same protection when the bogus marker trails the sentence (style 2)."""
+    index_map = [make_chunk(1)]
+    result = validate_citations("Real fact. [1] Fake fact. [9]", index_map)
+    assert result.citations_used == [1]
+    assert "Fake fact." in result.uncited_sentences
+    assert not result.is_fully_grounded
+
+
+def test_marker_before_period_counts_as_grounded():
+    """The 'fact [1].' style (marker before terminal punctuation) is grounded."""
+    index_map = [make_chunk(1), make_chunk(2)]
+    result = validate_citations("First claim [1]. Second claim [2].", index_map)
+    assert result.is_fully_grounded
+    assert result.uncited_sentences == []
+    assert result.citations_used == [1, 2]
+
+
+def test_trailing_uncited_text_without_punctuation_flagged():
+    index_map = [make_chunk(1)]
+    result = validate_citations("An uncited trailing claim with no period", index_map)
+    assert result.uncited_sentences == ["An uncited trailing claim with no period"]
+    assert not result.is_fully_grounded
+
+
 def test_empty_answer():
     result = validate_citations("", [])
     assert result.citations_used == []

@@ -7,7 +7,6 @@ read from Streamlit secrets and never exposed to the browser.
 """
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -40,8 +39,6 @@ def _get_api_key() -> str | None:
 # ---------------------------------------------------------------------------
 def _get_store():
     if "store" not in st.session_state:
-        import sqlite_vec
-        import sqlite3
         # Use a temp dir scoped to this session
         tmp = tempfile.mkdtemp(prefix="pocket_gm_")
         from pocket_gm.retrieval.store import Store
@@ -115,7 +112,6 @@ _DEMO_TRANSCRIPT = [
 @st.cache_resource(show_spinner="Loading demo campaign…")
 def _build_demo_store():
     """Build the demo store once per app process (cached across sessions)."""
-    import numpy as np
     from sentence_transformers import SentenceTransformer
     from pocket_gm.retrieval.store import (
         Store, sourcebook_table, notes_table, sessions_table,
@@ -276,7 +272,6 @@ else:
                         "timestamp_start": 0.0,
                     })
             if chunks:
-                import numpy as np
                 vecs = embedder.encode([c["text"] for c in chunks], normalize_embeddings=True)
                 store.add_documents(sourcebook_table(campaign_id), chunks, vecs, campaign_id)
                 st.sidebar.success(f"PDF: {len(chunks)} pages ingested")
@@ -298,7 +293,6 @@ else:
                     "timestamp_start": 0.0,
                 })
             if all_note_chunks:
-                import numpy as np
                 vecs = embedder.encode([c["text"] for c in all_note_chunks], normalize_embeddings=True)
                 store.add_documents(notes_table(campaign_id), all_note_chunks, vecs, campaign_id)
                 st.sidebar.success(f"Notes: {len(all_note_chunks)} files ingested")

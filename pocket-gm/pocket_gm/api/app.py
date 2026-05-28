@@ -13,10 +13,12 @@ from pocket_gm.api.models import (
 )
 from pocket_gm.core.campaign import get_campaign, list_campaigns
 from pocket_gm.core.config import load_config
+from pocket_gm.core.logger import log_query
 from pocket_gm.ingestion.embedder import Embedder
 from pocket_gm.retrieval.router import query_all_sync
 from pocket_gm.retrieval.store import Store, notes_table, sessions_table, sourcebook_table
 from pocket_gm.synthesis.grounding import parse_json_answer, validate_citations
+from pocket_gm.synthesis.llm import build_llm_client
 from pocket_gm.synthesis.ollama_client import OllamaClient
 from pocket_gm.synthesis.prompt_builder import build_prompt
 
@@ -87,8 +89,18 @@ def query(req: QueryRequest):
 
     query_vec = embedder.embed_one(req.question)
     result = query_all_sync(store, req.campaign_id, query_vec, top_k=req.top_k)
+    all_retrieved = result.sourcebook + result.notes + result.sessions
 
     if result.is_empty(cfg.retrieval.relevance_threshold):
+        from pocket_gm.synthesis.grounding import GroundedAnswer
+        try:
+            log_query(
+                cfg.logs_path, req.campaign_id, req.question,
+                GroundedAnswer(text="", citations_used=[], uncited_sentences=[], index_map=[]),
+                cfg.llm.model, all_retrieved=all_retrieved,
+            )
+        except Exception:
+            pass
         return QueryResponse(
             answer="No relevant information found in your campaign materials.",
             citations=[],
@@ -105,17 +117,31 @@ def query(req: QueryRequest):
         json_mode=cfg.llm.json_citations,
     )
 
-    ollama = OllamaClient(base_url=cfg.llm.base_url, model=cfg.llm.model)
-    if not ollama.is_available():
-        raise HTTPException(status_code=503, detail="Ollama is not available. Start it with: ollama serve")
+    try:
+        llm = build_llm_client(cfg.llm)
+    except (RuntimeError, ImportError, ValueError) as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    if not llm.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM provider '{cfg.llm.provider}' is not available.",
+        )
 
-    answer_text = ollama.generate(prompt, temperature=cfg.llm.temperature, max_tokens=cfg.llm.max_tokens)
+    answer_text = llm.generate(prompt, temperature=cfg.llm.temperature, max_tokens=cfg.llm.max_tokens)
 
     grounded = (
         parse_json_answer(answer_text, index_map)
         if cfg.llm.json_citations
         else validate_citations(answer_text, index_map)
     )
+
+    # Log the query so /query traffic feeds the eval harness and calibration,
+    # exactly like the CLI's `ask` command does.
+    try:
+        log_query(cfg.logs_path, req.campaign_id, req.question, grounded, cfg.llm.model, all_retrieved=all_retrieved)
+    except Exception:
+        # Logging must never break a query response.
+        pass
 
     citations = [
         CitationOut(

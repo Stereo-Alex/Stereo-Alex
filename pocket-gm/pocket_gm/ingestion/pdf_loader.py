@@ -97,9 +97,15 @@ def load_pdf(path: Path) -> list[RawChunk]:
         raise ImportError("pymupdf is required: pip install pymupdf")
 
     doc = fitz.open(str(path))
+    try:
+        return _extract_pages(doc, path)
+    finally:
+        doc.close()
+
+
+def _extract_pages(doc, path: Path) -> list[RawChunk]:
     chunks: list[RawChunk] = []
     current_heading = ""
-
     for page_num, page in enumerate(doc, start=1):
         blocks = page.get_text("dict")["blocks"]
 
@@ -139,5 +145,4 @@ def load_pdf(path: Path) -> list[RawChunk]:
                 filename=path.name,
             ))
 
-    doc.close()
     return chunks

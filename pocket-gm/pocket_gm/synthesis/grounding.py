@@ -21,6 +21,19 @@ class GroundedAnswer:
 
 _CITATION_RE = re.compile(r"\[(\d+)\]")
 _SENTENCE_RE = re.compile(r"[^.!?]+[.!?]+")
+# A sentence body up to its terminal punctuation, plus any citation markers
+# that immediately trail it. This captures both citation styles:
+#   "fact [1]."   -> marker inside the body (before the period)
+#   "fact. [1]"   -> marker in the trailing group (after the period)
+_SENTENCE_WITH_CITES_RE = re.compile(r"([^.!?]*[.!?]+)(\s*(?:\[\d+\]\s*)*)")
+
+
+def _clean_uncited(text: str) -> str:
+    """Strip citation markers from a reported uncited sentence and tidy the
+    whitespace the removal leaves behind (e.g. "fact [9]." -> "fact.")."""
+    cleaned = _CITATION_RE.sub("", text)
+    cleaned = re.sub(r"\s+([.!?])", r"\1", cleaned)
+    return re.sub(r"\s{2,}", " ", cleaned).strip()
 
 
 def validate_citations(
@@ -32,25 +45,43 @@ def validate_citations(
     cited = {int(m) for m in _CITATION_RE.findall(answer_text)}
     citations_used = sorted(cited & valid_ids)
 
-    # Split text on citation markers; each text segment between/after markers
-    # represents prose that either was or wasn't followed by a citation.
-    # Segments: [text, [N], text, [N], trailing_text]
-    parts = re.split(r"(\[\d+\])", answer_text)
-    uncited: list[str] = []
+    # The canonical "not found" response makes no factual claims, so it is
+    # grounded by definition. This mirrors the eval harness (metrics.py) and
+    # avoids showing a spurious "uncited sentence" warning for a non-answer.
+    if answer_text.strip().lower().startswith("not found"):
+        return GroundedAnswer(
+            text=answer_text,
+            citations_used=citations_used,
+            uncited_sentences=[],
+            index_map=index_map,
+        )
 
-    for i, part in enumerate(parts):
-        # Even indices are text segments; odd indices are citation markers
-        if i % 2 == 1:
+    # Sentence-first validation. Each sentence (its body up to terminal
+    # punctuation, plus any markers trailing it) is grounded only if it carries
+    # a citation marker whose id was actually retrieved.
+    #
+    # This is deliberately strict about hallucinated ids: "The dragon has 300
+    # HP [7]." when only [1]..[3] exist is NOT grounded, because the model can
+    # otherwise fabricate both the fact and a plausible-looking citation number
+    # and slip past the check.
+    uncited: list[str] = []
+    last_end = 0
+    for m in _SENTENCE_WITH_CITES_RE.finditer(answer_text):
+        last_end = m.end()
+        unit = m.group(0)
+        if not unit.strip():
             continue
-        text = part.strip()
-        if not text:
-            continue
-        # This text segment is cited if the next part is a citation marker
-        has_following_citation = (i + 1 < len(parts) and bool(_CITATION_RE.match(parts[i + 1].strip())))
-        if not has_following_citation:
-            # Extract individual sentences from this uncited segment
-            sentences = [s.strip() for s in _SENTENCE_RE.findall(text) if s.strip()]
-            uncited.extend(sentences)
+        marker_ids = {int(c) for c in _CITATION_RE.findall(unit)}
+        if not (marker_ids & valid_ids):
+            uncited.append(_clean_uncited(unit))
+
+    # Any trailing prose past the last terminal punctuation is still a claim
+    # (e.g. an answer with no closing period) and must be checked too.
+    trailing = answer_text[last_end:]
+    if trailing.strip():
+        marker_ids = {int(c) for c in _CITATION_RE.findall(trailing)}
+        if not (marker_ids & valid_ids):
+            uncited.append(_clean_uncited(trailing))
 
     return GroundedAnswer(
         text=answer_text,

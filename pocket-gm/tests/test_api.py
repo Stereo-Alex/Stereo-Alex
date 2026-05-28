@@ -189,7 +189,7 @@ def test_query_with_answer(client):
 
     with patch("pocket_gm.api.app.query_all_sync") as mock_q, \
          patch("pocket_gm.api.app.Embedder") as mock_emb, \
-         patch("pocket_gm.api.app.OllamaClient") as mock_ollama, \
+         patch("pocket_gm.api.app.build_llm_client") as mock_build, \
          patch("pocket_gm.api.app.build_prompt") as mock_prompt:
 
         mock_emb.return_value.embed_one.return_value = np.zeros(384)
@@ -198,8 +198,8 @@ def test_query_with_answer(client):
 
         index_map = [(1, chunk)]
         mock_prompt.return_value = ("fake prompt", index_map)
-        mock_ollama.return_value.is_available.return_value = True
-        mock_ollama.return_value.generate.return_value = "The Stag Lord is a bandit lord [1]."
+        mock_build.return_value.is_available.return_value = True
+        mock_build.return_value.generate.return_value = "The Stag Lord is a bandit lord [1]."
 
         resp = client.post("/query", json={"question": "Who is the Stag Lord?", "campaign_id": "test"})
 
@@ -217,14 +217,14 @@ def test_query_ollama_unavailable(client):
 
     with patch("pocket_gm.api.app.query_all_sync") as mock_q, \
          patch("pocket_gm.api.app.Embedder") as mock_emb, \
-         patch("pocket_gm.api.app.OllamaClient") as mock_ollama, \
+         patch("pocket_gm.api.app.build_llm_client") as mock_build, \
          patch("pocket_gm.api.app.build_prompt") as mock_prompt:
 
         mock_emb.return_value.embed_one.return_value = np.zeros(384)
         from pocket_gm.retrieval.router import QueryResult
         mock_q.return_value = QueryResult(sourcebook=[chunk], notes=[], sessions=[])
         mock_prompt.return_value = ("fake prompt", [(1, chunk)])
-        mock_ollama.return_value.is_available.return_value = False
+        mock_build.return_value.is_available.return_value = False
 
         resp = client.post("/query", json={"question": "Who?", "campaign_id": "test"})
 
@@ -246,15 +246,15 @@ def test_query_top_k_passed_through(client):
 
     with patch("pocket_gm.api.app.query_all_sync") as mock_q, \
          patch("pocket_gm.api.app.Embedder") as mock_emb, \
-         patch("pocket_gm.api.app.OllamaClient") as mock_ollama, \
+         patch("pocket_gm.api.app.build_llm_client") as mock_build, \
          patch("pocket_gm.api.app.build_prompt") as mock_prompt:
 
         mock_emb.return_value.embed_one.return_value = np.zeros(384)
         from pocket_gm.retrieval.router import QueryResult
         mock_q.return_value = QueryResult(sourcebook=[chunk], notes=[], sessions=[])
         mock_prompt.return_value = ("fake prompt", [(1, chunk)])
-        mock_ollama.return_value.is_available.return_value = True
-        mock_ollama.return_value.generate.return_value = "Answer [1]."
+        mock_build.return_value.is_available.return_value = True
+        mock_build.return_value.generate.return_value = "Answer [1]."
 
         client.post("/query", json={"question": "Who?", "campaign_id": "test", "top_k": 10})
 
@@ -269,16 +269,16 @@ def test_query_fully_grounded_flag(client):
 
     with patch("pocket_gm.api.app.query_all_sync") as mock_q, \
          patch("pocket_gm.api.app.Embedder") as mock_emb, \
-         patch("pocket_gm.api.app.OllamaClient") as mock_ollama, \
+         patch("pocket_gm.api.app.build_llm_client") as mock_build, \
          patch("pocket_gm.api.app.build_prompt") as mock_prompt:
 
         mock_emb.return_value.embed_one.return_value = np.zeros(384)
         from pocket_gm.retrieval.router import QueryResult
         mock_q.return_value = QueryResult(sourcebook=[chunk], notes=[], sessions=[])
         mock_prompt.return_value = ("fake prompt", [(1, chunk)])
-        mock_ollama.return_value.is_available.return_value = True
+        mock_build.return_value.is_available.return_value = True
         # Every sentence has a citation → fully grounded
-        mock_ollama.return_value.generate.return_value = "The Stag Lord is a bandit [1]."
+        mock_build.return_value.generate.return_value = "The Stag Lord is a bandit [1]."
 
         resp = client.post("/query", json={"question": "Who?", "campaign_id": "test"})
 

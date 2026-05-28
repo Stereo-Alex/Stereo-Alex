@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -99,6 +98,9 @@ def ingest_notes(
 
     registry_path = get_registry_path(cfg.campaigns_dir, campaign)
     all_chunks: list[Chunk] = []
+    # (file_hash, filename, chunk_count) for files staged this run — committed
+    # to the registry only after the bulk embed/store succeeds.
+    pending: list[tuple[str, str, int]] = []
     skipped = 0
 
     for f in files:
@@ -112,23 +114,18 @@ def ingest_notes(
         chunks = chunk_markdown(text, f.name, cfg.chunking.notes.chunk_size, cfg.chunking.notes.chunk_overlap)
         all_chunks.extend(chunks)
         console.print(f"  {f.name}: {len(chunks)} chunks")
-
-        # Mark ingested after collecting chunks (we'll commit after bulk embed)
-        # Store hash→chunks mapping so we can call mark_ingested after embed
-        f._pending_hash = file_hash  # type: ignore[attr-defined]
-        f._pending_chunks = len(chunks)  # type: ignore[attr-defined]
+        pending.append((file_hash, f.name, len(chunks)))
 
     if not all_chunks:
         if skipped:
             console.print("[dim]All files already ingested.[/dim]")
         return
 
-    _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(files) - skipped} file(s)")
+    _ingest_chunks(all_chunks, notes_table(campaign), campaign, cfg, f"{len(pending)} file(s)")
 
     # Mark all successfully ingested files
-    for f in files:
-        if hasattr(f, "_pending_hash"):
-            mark_ingested(registry_path, f._pending_hash, f.name, f._pending_chunks)  # type: ignore[attr-defined]
+    for file_hash, filename, chunk_count in pending:
+        mark_ingested(registry_path, file_hash, filename, chunk_count)
 
 
 @app.command("obsidian")

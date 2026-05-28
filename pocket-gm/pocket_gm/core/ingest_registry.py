@@ -47,9 +47,15 @@ def mark_ingested(
     _save(registry_path, data)
 
 
-def hash_file(file_path: Path, read_bytes: int = 65536) -> str:
-    """Return a SHA256 hex digest of the first `read_bytes` of the file."""
+def hash_file(file_path: Path, chunk_size: int = 65536) -> str:
+    """Return a SHA256 hex digest of the file's full contents.
+
+    Hashing the whole file (streamed in *chunk_size* blocks) avoids false
+    "already ingested" collisions between different files that happen to share
+    a common header — common for exported PDFs or recordings from the same rig.
+    """
     h = hashlib.sha256()
     with open(file_path, "rb") as f:
-        h.update(f.read(read_bytes))
+        for block in iter(lambda: f.read(chunk_size), b""):
+            h.update(block)
     return h.hexdigest()
