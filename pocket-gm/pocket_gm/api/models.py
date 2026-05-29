@@ -49,4 +49,4 @@ class StatusOut(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
-    ollama_available: bool
+    llm_available: bool

@@ -19,7 +19,6 @@ from pocket_gm.retrieval.router import query_all_sync
 from pocket_gm.retrieval.store import Store, notes_table, sessions_table, sourcebook_table
 from pocket_gm.synthesis.grounding import parse_json_answer, validate_citations
 from pocket_gm.synthesis.llm import build_llm_client
-from pocket_gm.synthesis.ollama_client import OllamaClient
 from pocket_gm.synthesis.prompt_builder import build_prompt
 
 app = FastAPI(
@@ -48,8 +47,12 @@ def _get_singletons():
 @app.get("/health", response_model=HealthResponse)
 def health():
     cfg, _, _ = _get_singletons()
-    ollama = OllamaClient(base_url=cfg.llm.base_url, model=cfg.llm.model)
-    return HealthResponse(status="ok", ollama_available=ollama.is_available())
+    try:
+        client = build_llm_client(cfg.llm)
+        available = client.is_available()
+    except (RuntimeError, ImportError, ValueError):
+        available = False
+    return HealthResponse(status="ok", llm_available=available)
 
 
 @app.get("/campaigns", response_model=list[CampaignOut])

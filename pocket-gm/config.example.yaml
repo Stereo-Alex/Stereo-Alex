@@ -13,6 +13,10 @@ retrieval:
   reranker_model: cross-encoder/ms-marco-MiniLM-L-6-v2
 
 llm:
+  # provider: ollama — local Ollama server (default); requires Ollama running locally
+  #   Recommended models: phi3:mini (fast, 3.8 B), llama3.2:3b, mistral:7b-instruct
+  # provider: claude — Anthropic Claude API; requires ANTHROPIC_API_KEY env var
+  #   Recommended models: claude-haiku-4-5-20251001 (fast/cheap), claude-sonnet-4-6 (best quality)
   provider: ollama
   base_url: http://localhost:11434
   model: phi3:mini

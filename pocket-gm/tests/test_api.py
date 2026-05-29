@@ -52,21 +52,29 @@ def client(_tmp_cfg, _campaign):
 
 # ── /health ───────────────────────────────────────────────────────────────────
 
-def test_health_ollama_available(client):
-    with patch("pocket_gm.api.app.OllamaClient") as mock_cls:
-        mock_cls.return_value.is_available.return_value = True
+def test_health_llm_available(client):
+    with patch("pocket_gm.api.app.build_llm_client") as mock_build:
+        mock_build.return_value.is_available.return_value = True
         resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
-    assert resp.json()["ollama_available"] is True
+    assert resp.json()["llm_available"] is True
 
 
-def test_health_ollama_unavailable(client):
-    with patch("pocket_gm.api.app.OllamaClient") as mock_cls:
-        mock_cls.return_value.is_available.return_value = False
+def test_health_llm_unavailable(client):
+    with patch("pocket_gm.api.app.build_llm_client") as mock_build:
+        mock_build.return_value.is_available.return_value = False
         resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json()["ollama_available"] is False
+    assert resp.json()["llm_available"] is False
+
+
+def test_health_llm_build_error(client):
+    """build_llm_client raising (e.g. missing API key) → llm_available=False, not 500."""
+    with patch("pocket_gm.api.app.build_llm_client", side_effect=RuntimeError("no key")):
+        resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["llm_available"] is False
 
 
 # ── /campaigns ────────────────────────────────────────────────────────────────

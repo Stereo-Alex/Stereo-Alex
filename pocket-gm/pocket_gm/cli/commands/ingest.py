@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import typer
@@ -14,6 +15,22 @@ from pocket_gm.ingestion.embedder import Embedder
 from pocket_gm.ingestion.obsidian_loader import load_obsidian_vault
 from pocket_gm.ingestion.pdf_loader import load_pdf
 from pocket_gm.retrieval.store import Store, notes_table, sourcebook_table, sessions_table
+
+_SESSION_NUM_RE = re.compile(r"session[_\s-]*(\d+)", re.IGNORECASE)
+_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def _parse_audio_session_meta(stem: str) -> tuple[int, str]:
+    """Extract (session_number, session_date) from an audio filename stem.
+
+    Handles patterns like 'session_04_2025-03-10', 'Session4_2025-03-10', etc.
+    Falls back to (0, "") when the pattern is not recognised.
+    """
+    num_match = _SESSION_NUM_RE.search(stem)
+    session_number = int(num_match.group(1)) if num_match else 0
+    date_match = _DATE_RE.search(stem)
+    session_date = date_match.group(1) if date_match else ""
+    return session_number, session_date
 
 app = typer.Typer(help="Ingest campaign materials")
 console = Console()
@@ -317,11 +334,12 @@ def ingest_gdrive(
             transcripts_dir = cfg.campaigns_dir / campaign / "transcripts"
             save_transcript(transcript, transcripts_dir, audio_file.stem)
 
+            session_num, session_date = _parse_audio_session_meta(audio_file.stem)
             raw_chunks = chunk_transcript(
                 transcript.full_text,
                 filename=audio_file.name,
-                session_number=0,
-                session_date="",
+                session_number=session_num,
+                session_date=session_date,
                 chunk_size=cfg.chunking.sessions.chunk_size,
                 chunk_overlap=cfg.chunking.sessions.chunk_overlap,
             )

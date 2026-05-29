@@ -366,3 +366,97 @@ def test_ask_no_results_logs_scores(gm_env, tmp_path):
     assert log_file.exists()
     record = json.loads(log_file.read_text().splitlines()[-1])
     assert "all_scores" in record
+
+
+# ---------------------------------------------------------------------------
+# eval run command
+# ---------------------------------------------------------------------------
+
+def test_eval_run_missing_eval_set(gm_env):
+    runner.invoke(app, ["campaign", "new", "kingmaker"])
+    r = runner.invoke(app, ["eval", "run", "--campaign", "kingmaker",
+                            "--eval-set", "/no/such/eval_set.json"])
+    assert r.exit_code == 1
+    assert "not found" in r.output.lower()
+
+
+def test_eval_run_with_log(gm_env, tmp_path):
+    """eval run should produce a metrics table when a query log exists."""
+    import json
+
+    runner.invoke(app, ["campaign", "new", "kingmaker"])
+    pdf = tmp_path / "book.pdf"
+    _write_sample_pdf(pdf)
+    runner.invoke(app, ["ingest", "pdf", str(pdf), "--campaign", "kingmaker"])
+
+    # Run a real query so the log has an entry for the eval harness to read.
+    class _StubLLM:
+        def is_available(self): return True
+        def generate(self, prompt, temperature=0.1, max_tokens=512):
+            return "The Stag Lord's weakness is alcoholism [1]."
+
+    with patch("pocket_gm.cli.commands.query.build_llm_client", return_value=_StubLLM()):
+        runner.invoke(app, ["ask", "What is the Stag Lord's weakness?", "--campaign", "kingmaker"])
+
+    # Build a minimal eval set referencing the question we just asked.
+    eval_set = [
+        {
+            "question": "What is the Stag Lord's weakness?",
+            "expected_filename": "book.pdf",
+            "expected_text_fragment": "alcoholism",
+        }
+    ]
+    eval_set_path = tmp_path / "eval_set.json"
+    eval_set_path.write_text(json.dumps(eval_set))
+
+    r = runner.invoke(app, ["eval", "run", "--campaign", "kingmaker",
+                            "--eval-set", str(eval_set_path)])
+    assert r.exit_code == 0, r.output
+    assert "recall" in r.output.lower()
+    assert "citation" in r.output.lower()
+
+
+def test_eval_run_empty_eval_set(gm_env, tmp_path):
+    """eval run with an empty eval set should exit cleanly with zero metrics."""
+    import json
+
+    runner.invoke(app, ["campaign", "new", "kingmaker"])
+    eval_set_path = tmp_path / "eval_set.json"
+    eval_set_path.write_text(json.dumps([]))
+
+    r = runner.invoke(app, ["eval", "run", "--campaign", "kingmaker",
+                            "--eval-set", str(eval_set_path)])
+    assert r.exit_code == 0, r.output
+
+
+# ---------------------------------------------------------------------------
+# _parse_audio_session_meta unit tests
+# ---------------------------------------------------------------------------
+
+def test_parse_audio_session_meta_standard():
+    from pocket_gm.cli.commands.ingest import _parse_audio_session_meta
+    assert _parse_audio_session_meta("session_04_2025-03-10") == (4, "2025-03-10")
+
+
+def test_parse_audio_session_meta_no_leading_zero():
+    from pocket_gm.cli.commands.ingest import _parse_audio_session_meta
+    assert _parse_audio_session_meta("session_4_2025-01-15") == (4, "2025-01-15")
+
+
+def test_parse_audio_session_meta_no_date():
+    from pocket_gm.cli.commands.ingest import _parse_audio_session_meta
+    num, date = _parse_audio_session_meta("session_07_recording")
+    assert num == 7
+    assert date == ""
+
+
+def test_parse_audio_session_meta_no_session_number():
+    from pocket_gm.cli.commands.ingest import _parse_audio_session_meta
+    num, date = _parse_audio_session_meta("2025-06-01_recording")
+    assert num == 0
+    assert date == "2025-06-01"
+
+
+def test_parse_audio_session_meta_unrecognised():
+    from pocket_gm.cli.commands.ingest import _parse_audio_session_meta
+    assert _parse_audio_session_meta("random_audio_file") == (0, "")
