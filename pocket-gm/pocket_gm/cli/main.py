@@ -1,6 +1,6 @@
 import typer
 
-from pocket_gm.cli.commands import campaigns, eval_cmd, ingest, query, serve, sessions, status
+from pocket_gm.cli.commands import campaigns, eval_cmd, ingest, init_cmd, query, serve, sessions, status
 
 app = typer.Typer(
     name="pocket-gm",
@@ -8,6 +8,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+app.add_typer(init_cmd.app, name="")
 app.add_typer(campaigns.app, name="campaign")
 app.add_typer(ingest.app, name="ingest")
 app.add_typer(query.app, name="")
